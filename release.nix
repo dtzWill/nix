@@ -279,10 +279,10 @@ let
       constituents =
         [ tarball
           build.i686-linux
-          build.x86_64-darwin
+          # build.x86_64-darwin
           build.x86_64-linux
           binaryTarball.i686-linux
-          binaryTarball.x86_64-darwin
+          #binaryTarball.x86_64-darwin
           binaryTarball.x86_64-linux
           #deb_debian8i386
           #deb_debian8x86_64
