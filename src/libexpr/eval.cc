@@ -378,6 +378,18 @@ void EvalState::checkURI(const std::string & uri)
             && (prefix[prefix.size() - 1] == '/' || uri[prefix.size()] == '/')))
             return;
 
+    /* If the URI is a path, then check it against allowedPaths as
+       well. */
+    if (hasPrefix(uri, "/")) {
+        checkSourcePath(uri);
+        return;
+    }
+
+    if (hasPrefix(uri, "file://")) {
+        checkSourcePath(std::string(uri, 7));
+        return;
+    }
+
     throw RestrictedPathError("access to URI '%s' is forbidden in restricted mode", uri);
 }
 
@@ -1566,7 +1578,7 @@ string EvalState::copyPathToStore(PathSet & context, const Path & path)
         dstPath = srcToStore[path];
     else {
         dstPath = settings.readOnlyMode
-            ? store->computeStorePathForPath(checkSourcePath(path)).first
+            ? store->computeStorePathForPath(baseNameOf(path), checkSourcePath(path)).first
             : store->addToStore(baseNameOf(path), checkSourcePath(path), true, htSHA256, defaultPathFilter, repair);
         srcToStore[path] = dstPath;
         printMsg(lvlChatty, format("copied source '%1%' -> '%2%'")

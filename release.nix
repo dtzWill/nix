@@ -226,12 +226,14 @@ let
       nix = build.x86_64-linux; system = "x86_64-linux";
     });
 
-    tests.setuid = pkgs.lib.genAttrs (pkgs.lib.filter (pkgs.lib.hasSuffix "-linux") systems) (system:
-      import ./tests/setuid.nix rec {
-        inherit nixpkgs;
-        nix = build.${system}; inherit system;
-      });
-i*/
+    tests.setuid = pkgs.lib.genAttrs
+      ["i686-linux" "x86_64-linux"]
+      (system:
+        import ./tests/setuid.nix rec {
+          inherit nixpkgs;
+          nix = build.${system}; inherit system;
+        });
+*/
 
     tests.binaryTarball =
       with import nixpkgs { system = "x86_64-linux"; };

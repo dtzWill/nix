@@ -1,7 +1,9 @@
 { pkgs }:
 
 rec {
-  sh = pkgs.busybox.override {
+  # Use "busybox-sandbox-shell" if present,
+  # if not (legacy) fallback and hope it's sufficient.
+  sh = pkgs.busybox-sandbox-shell or (pkgs.busybox.override {
     useMusl = true;
     enableStatic = true;
     enableMinimal = true;
@@ -23,7 +25,7 @@ rec {
       CONFIG_ASH_PRINTF y
       CONFIG_ASH_TEST y
     '';
-  };
+  });
 
   configureFlags =
     [ "--disable-init-state"

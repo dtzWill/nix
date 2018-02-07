@@ -3428,7 +3428,7 @@ void DerivationGoal::flushLine()
     else {
         if (settings.verboseBuild &&
             (settings.printRepeatedBuilds || curRound == 1))
-            printError(filterANSIEscapes(currentLogLine, true));
+            printError(currentLogLine);
         else {
             logTail.push_back(currentLogLine);
             if (logTail.size() > settings.logLines) logTail.pop_front();
@@ -3670,7 +3670,7 @@ void SubstitutionGoal::tryNext()
     /* Update the total expected download size. */
     auto narInfo = std::dynamic_pointer_cast<const NarInfo>(info);
 
-    maintainExpectedNar = std::make_unique<MaintainCount<uint64_t>>(worker.expectedNarSize, narInfo->narSize);
+    maintainExpectedNar = std::make_unique<MaintainCount<uint64_t>>(worker.expectedNarSize, info->narSize);
 
     maintainExpectedDownload =
         narInfo && narInfo->fileSize
@@ -3684,7 +3684,10 @@ void SubstitutionGoal::tryNext()
     /* Bail out early if this substituter lacks a valid
        signature. LocalStore::addToStore() also checks for this, but
        only after we've downloaded the path. */
-    if (worker.store.requireSigs && !info->checkSignatures(worker.store, worker.store.publicKeys)) {
+    if (worker.store.requireSigs
+        && !sub->isTrusted
+        && !info->checkSignatures(worker.store, worker.store.publicKeys))
+    {
         printInfo(format("warning: substituter '%s' does not have a valid signature for path '%s'")
             % sub->getUri() % storePath);
         tryNext();
@@ -3752,7 +3755,7 @@ void SubstitutionGoal::tryToRun()
             PushActivity pact(act.id);
 
             copyStorePath(ref<Store>(sub), ref<Store>(worker.store.shared_from_this()),
-                storePath, repair);
+                storePath, repair, sub->isTrusted ? NoCheckSigs : CheckSigs);
 
             promise.set_value();
         } catch (...) {
