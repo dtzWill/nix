@@ -70,7 +70,7 @@ let
         buildInputs =
           [ curl
             bzip2 xz brotli
-            openssl pkgconfig sqlite boehmgc
+            openssl pkgconfig sqlite (boehmgc.override { enableLargeConfig = true; })
 
             # Tests
             git
