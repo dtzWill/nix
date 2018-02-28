@@ -188,6 +188,8 @@ bool NixRepl::getLine(string & input, const std::string &prompt)
     Finally doFree([&]() { free(s); });
     if (!s) {
       switch (auto type = linenoiseKeyType()) {
+        case 0: // nothing?
+          return false;
         case 1: // ctrl-C
           input = "";
           return true;
