@@ -6,7 +6,7 @@
 
 let
 
-  pkgs = import nixpkgs { system = builtins.currentSystem or "x86_64-linux"; };
+  pkgs = import nixpkgs { localSystem = { config = "x86_64-unknown-linux-musl"; }; };
 
   jobs = rec {
 
@@ -55,7 +55,8 @@ let
 
     build = pkgs.lib.genAttrs systems (system:
 
-      let pkgs = import nixpkgs { inherit system; }; in
+      # let pkgs = import nixpkgs { inherit system; }; in
+      let pkgs = import nixpkgs { localSystem.config = "x86_64-unknown-linux-musl"; }; in
 
       with pkgs;
 
