@@ -1,6 +1,8 @@
 { useClang ? false }:
 
-with import (builtins.fetchGit { url = https://github.com/NixOS/nixpkgs-channels.git; ref = "nixos-18.09"; }) {};
+with import (builtins.fetchGit { url = https://github.com/NixOS/nixpkgs-channels.git; ref = "nixos-18.09"; }) {
+  localSystem.config = "x86_64-unknown-linux-musl";
+};
 
 with import ./release-common.nix { inherit pkgs; };
 
