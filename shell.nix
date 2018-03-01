@@ -1,6 +1,8 @@
 { useClang ? false }:
 
-with import (builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/nixos-20.03-small.tar.gz) {};
+with import (builtins.fetchTarball https://github.com/NixOS/nixpkgs/archive/nixos-20.03-small.tar.gz) {
+  localSystem.config = "x86_64-unknown-linux-musl";
+};
 
 with import ./release-common.nix { inherit pkgs; };
 
