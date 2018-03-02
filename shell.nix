@@ -4,7 +4,9 @@ with import <nixpkgs> { localSystem = { config = "x86_64-unknown-linux-musl"; };
 
 with import ./release-common.nix { inherit pkgs; };
 
-(if useClang then clangStdenv else stdenv).mkDerivation {
+let
+  stdenv = if useClang then clangStdenv else pkgs.stdenv;
+in stdenv.mkDerivation {
   name = "nix";
 
   buildInputs =
@@ -14,6 +16,7 @@ with import ./release-common.nix { inherit pkgs; };
       docbook5 docbook5_xsl
       autoconf-archive
       (aws-sdk-cpp.override {
+        inherit stdenv;
         apis = ["s3"];
         customMemoryManagement = false;
       })
