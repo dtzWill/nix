@@ -8,6 +8,7 @@
 
 namespace nix {
 
+void SerialisationError::anchor() {}
 
 void BufferedSink::operator () (const unsigned char * data, size_t len)
 {
