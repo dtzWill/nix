@@ -105,6 +105,18 @@ void initNix()
     std::cerr.rdbuf()->pubsetbuf(buf, sizeof(buf));
 #endif
 
+    pthread_attr_t attr;
+    if (pthread_getattr_default_np(&attr))
+      throw SysError("pthread_getattr_default_np");
+    size_t stacksize;
+    if (pthread_attr_getstacksize(&attr, &stacksize))
+      throw SysError("pthread_attr_getstacksize");
+    stacksize = std::max<size_t>(stacksize, 1ULL << 23);
+    if (pthread_attr_setstacksize(&attr, stacksize))
+      throw SysError("pthread_attr_setstacksize");
+    if (pthread_setattr_default_np(&attr))
+      throw SysError("pthread_setattr_default_np");
+
     /* Initialise OpenSSL locking. */
     opensslLocks = std::vector<std::mutex>(CRYPTO_num_locks());
     CRYPTO_set_locking_callback(opensslLockCallback);
