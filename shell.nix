@@ -5,7 +5,7 @@ with import <nixpkgs> { localSystem = { config = "x86_64-unknown-linux-musl"; };
 with import ./release-common.nix { inherit pkgs; };
 
 let
-  stdenv = if useClang then clangStdenv else pkgs.stdenv;
+  stdenv = if useClang then libcxxStdenv else pkgs.stdenv;
 in stdenv.mkDerivation {
   name = "nix";
 
