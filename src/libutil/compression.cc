@@ -17,6 +17,9 @@
 
 namespace nix {
 
+void UnknownCompressionMethod::anchor() {}
+void CompressionError::anchor() {}
+
 static ref<std::string> decompressXZ(const std::string & in)
 {
     lzma_stream strm(LZMA_STREAM_INIT);
