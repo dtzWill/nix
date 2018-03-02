@@ -249,6 +249,7 @@ AC_CHECK_FUNCS([setresuid setreuid lchown])
 # Nice to have, but not essential.
 AC_CHECK_FUNCS([strsignal posix_fallocate sysconf])
 
+AC_CHECK_FUNCS([pthread_setattr_default_np])
 
 # This is needed if bzip2 is a static library, and the Nix libraries
 # are dynamic.
