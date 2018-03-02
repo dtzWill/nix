@@ -105,6 +105,7 @@ void initNix()
     std::cerr.rdbuf()->pubsetbuf(buf, sizeof(buf));
 #endif
 
+#if HAVE_PTHREAD_SETATTR_DEFAULT_NP
     pthread_attr_t attr;
     if (pthread_getattr_default_np(&attr))
       throw SysError("pthread_getattr_default_np");
@@ -116,6 +117,7 @@ void initNix()
       throw SysError("pthread_attr_setstacksize");
     if (pthread_setattr_default_np(&attr))
       throw SysError("pthread_setattr_default_np");
+#endif
 
     /* Initialise OpenSSL locking. */
     opensslLocks = std::vector<std::mutex>(CRYPTO_num_locks());
