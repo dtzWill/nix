@@ -10,4 +10,6 @@ libutil_LDFLAGS = $(LIBLZMA_LIBS) -lbz2 -pthread $(OPENSSL_LIBS) $(LIBBROTLI_LIB
 
 libutil_LIBS = libformat
 
-libutil_CXXFLAGS = -DBROTLI=\"$(brotli)\"
+libutil_CXXFLAGS = \
+  -DBROTLI=\"$(brotli)\" \
+  -DNIX_LIBEXEC_DIR=\"$(libexecdir)\"
