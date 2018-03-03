@@ -865,7 +865,7 @@ static pid_t doFork(bool allowVfork, std::function<void()> fun) __attribute__((n
 static pid_t doFork(bool allowVfork, std::function<void()> fun)
 {
 #ifdef __linux__
-    pid_t pid = allowVfork ? vfork() : fork();
+    pid_t pid = fork(); // allowVfork ? vfork() : fork();
 #else
     pid_t pid = fork();
 #endif
