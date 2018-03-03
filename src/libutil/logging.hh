@@ -79,6 +79,9 @@ public:
 
 extern thread_local ActivityId curActivity;
 
+// XXX: from util.hh
+void ignoreException();
+
 struct Activity
 {
     Logger & logger;
