@@ -67,6 +67,8 @@ let
         name = "nix";
         src = tarball;
 
+        stdenv = clangStdenv;
+
         buildInputs =
           [ curl
             bzip2 xz brotli
