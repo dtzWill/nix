@@ -1001,10 +1001,16 @@ void runProgram2(const RunOptions & options)
 
         restoreSignals();
 
-        if (options.searchPath)
+        if (options.searchPath) {
+            // Prepend our utilities to PATH
+            auto unixPath = tokenizeString<Strings>(getEnv("PATH"), ":");
+            unixPath.push_front(NIX_LIBEXEC_DIR "/nix");
+            setenv("PATH", concatStringsSep(":", unixPath).c_str(), 1);
+
             execvp(options.program.c_str(), stringsToCharPtrs(args_).data());
-        else
+        } else {
             execv(options.program.c_str(), stringsToCharPtrs(args_).data());
+        }
 
         throw SysError("executing '%1%'", options.program);
     });
