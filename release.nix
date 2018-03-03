@@ -1,5 +1,5 @@
 { nix ? builtins.fetchGit ./.
-, nixpkgs ? builtins.fetchGit { url = https://github.com/NixOS/nixpkgs.git; ref = "nix-2.0"; }
+, nixpkgs ? builtins.fetchGit { url = https://github.com/NixOS/nixpkgs.git; } # ref = "nix-2.0"; }
 , officialRelease ? false
 , systems ? [ "x86_64-linux" "i686-linux" "x86_64-darwin" "aarch64-linux" ]
 }:
@@ -97,6 +97,9 @@ let
 
         doInstallCheck = true;
         installCheckFlags = "sysconfdir=$(out)/etc";
+
+        dontStrip = true;
+        NIX_CFLAGS_COMPILE = "-g3 -O1";
       });
 
 
