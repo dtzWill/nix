@@ -99,7 +99,7 @@ let
         installCheckFlags = "sysconfdir=$(out)/etc";
 
         dontStrip = true;
-        NIX_CFLAGS_COMPILE = "-g3 -O1";
+        NIX_CFLAGS_COMPILE = "-g3";
       });
 
 
