@@ -63,9 +63,12 @@ let
 
       with import ./release-common.nix { inherit pkgs; };
 
+      let stdenv = libcxxStdenv; in
+
       releaseTools.nixBuild {
         name = "nix";
         src = tarball;
+        inherit stdenv;
 
         buildInputs =
           [ curl
@@ -80,6 +83,7 @@ let
           ++ lib.optional (stdenv.isLinux || stdenv.isDarwin) libsodium
           ++ lib.optional (stdenv.isLinux || stdenv.isDarwin)
             (aws-sdk-cpp.override {
+              inherit stdenv;
               apis = ["s3"];
               customMemoryManagement = false;
             });
