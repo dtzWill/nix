@@ -3,8 +3,8 @@
 , nixpkgs ? builtins.fetchGit { url = https://github.com/dtzWill/nixpkgs.git; ref = "update/aws-sdk-cpp-1.4.12"; }
 , officialRelease ? false
 , systems ? [ "x86_64-linux" "i686-linux" "x86_64-darwin" "aarch64-linux" ]
-, nixpkgsArgs ? {} #  localSystem ? { config = "x86_64-unknown-linux-musl"; } }
-#, nixpkgsArgs ? { localSystem ? { config = "x86_64-unknown-linux-musl"; } }
+#, nixpkgsArgs ? {} #  localSystem ? { config = "x86_64-unknown-linux-musl"; } }
+, nixpkgsArgs ? { localSystem ? { config = "x86_64-unknown-linux-musl"; } }
 }:
 
 let
