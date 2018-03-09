@@ -70,7 +70,8 @@ let
         #stdenv = llvmPackages_6.libcxxStdenv;
         stdenv = llvmPackages_6.stdenv;
         #extraCFLAGS = "-g -O1";
-        extraCFLAGS = "-fsanitize=address -g -fno-omit-frame-pointer";
+        #extraCFLAGS = "-fsanitize=address -g -fno-omit-frame-pointer";
+        extraCFLAGS = "-g -fno-omit-frame-pointer -O1";
       in
       releaseTools.nixBuild {
         name = "nix";
