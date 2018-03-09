@@ -1792,8 +1792,10 @@ void DerivationGoal::startBuilder()
             % drv->platform % settings.thisSystem % drvPath);
     }
 
+#ifdef __GLIBC__
     if (drv->isBuiltin())
         preloadNSS();
+#endif
 
 #if __APPLE__
     additionalSandboxProfile = get(drv->env, "__sandboxProfile");
