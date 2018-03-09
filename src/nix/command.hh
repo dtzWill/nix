@@ -70,6 +70,8 @@ struct Installable
     {
         throw Error("argument '%s' cannot be evaluated", what());
     }
+
+    virtual ~Installable() = default;
 };
 
 struct SourceExprCommand : virtual Args, StoreCommand, MixEvalArgs
