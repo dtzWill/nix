@@ -2212,6 +2212,9 @@ void DerivationGoal::startBuilder()
             _exit(0);
         }, options);
 
+        forkPipe.writeSide = -1;
+        forkPipe.readSide = -1;
+
         if (helper.wait() != 0)
             throw Error("unable to start build process");
 
