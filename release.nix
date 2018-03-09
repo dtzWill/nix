@@ -67,7 +67,8 @@ let
       with import ./release-common.nix { inherit pkgs; };
 
       let
-        stdenv = llvmPackages_6.libcxxStdenv;
+        #stdenv = llvmPackages_6.libcxxStdenv;
+        stdenv = llvmPackages_6.stdenv;
         #extraCFLAGS = "-g -O1";
         extraCFLAGS = "-fsanitize=address -g -O0";
       in
