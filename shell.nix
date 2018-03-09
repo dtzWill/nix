@@ -1,6 +1,6 @@
 { useClang ? true }:
 
-with import <nixpkgs> { localSystem = { config = "x86_64-unknown-linux-musl"; }; };
+with import <nixpkgs> {}; # { localSystem = { config = "x86_64-unknown-linux-musl"; }; };
 
 with import ./release-common.nix { inherit pkgs; };
 
