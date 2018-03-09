@@ -63,8 +63,10 @@ let
 
       with import ./release-common.nix { inherit pkgs; };
 
-      let stdenv = libcxxStdenv; in
-
+      let
+        stdenv = libcxxStdenv;
+        extraCFLAGS = "-fsanitize=undefined -g -O0";
+      in
       releaseTools.nixBuild {
         name = "nix";
         src = tarball;
@@ -82,11 +84,22 @@ let
           ++ lib.optional stdenv.isLinux (libseccomp.override { inherit stdenv; })
           ++ lib.optional (stdenv.isLinux || stdenv.isDarwin) libsodium
           ++ lib.optional (stdenv.isLinux || stdenv.isDarwin)
-            (aws-sdk-cpp.override {
+            ((aws-sdk-cpp.override {
               inherit stdenv;
               apis = ["s3"];
               customMemoryManagement = false;
-            });
+            }).overrideDerivation (o: {
+              preConfigure = o.preConfigure + ''
+                NIX_CFLAGS_COMPILE+=" -Wno-error ${extraCFLAGS}"
+              '';
+              hardeningDisable = [ "all" ];
+            }));
+
+        preConfigure = ''
+          NIX_CFLAGS_COMPILE+=" ${extraCFLAGS}"
+          substituteInPlace mk/libraries.mk --replace "-Wl,-z,defs" ""
+        '';
+
 
         configureFlags = configureFlags ++
           [ "--sysconfdir=/etc" ];
@@ -99,10 +112,12 @@ let
 
         installFlags = "sysconfdir=$(out)/etc";
 
+        dontStrip = true;
+
         doInstallCheck = true;
         installCheckFlags = "sysconfdir=$(out)/etc";
 
-        NIX_CFLAGS_COMPILE = "-fsanitize=address";
+        hardeningDisable = [ "all" ];
       });
 
 
