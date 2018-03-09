@@ -23,7 +23,7 @@ std::string hilite(const std::string & s, const std::smatch & m)
           + std::string(m.suffix());
 }
 
-struct CmdSearch : SourceExprCommand, MixJSON
+struct CmdSearch final : SourceExprCommand, MixJSON
 {
     std::string re;
 

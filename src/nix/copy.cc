@@ -8,7 +8,7 @@
 
 using namespace nix;
 
-struct CmdCopy : StorePathsCommand
+struct CmdCopy final : StorePathsCommand
 {
     std::string srcUri, dstUri;
 

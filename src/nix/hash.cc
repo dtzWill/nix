@@ -5,7 +5,7 @@
 
 using namespace nix;
 
-struct CmdHash : Command
+struct CmdHash final : Command
 {
     enum Mode { mFile, mPath };
     Mode mode;
@@ -51,7 +51,7 @@ struct CmdHash : Command
 static RegisterCommand r1(make_ref<CmdHash>(CmdHash::mFile));
 static RegisterCommand r2(make_ref<CmdHash>(CmdHash::mPath));
 
-struct CmdToBase : Command
+struct CmdToBase final : Command
 {
     Base base;
     HashType ht = htSHA512;

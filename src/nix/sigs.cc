@@ -7,7 +7,7 @@
 
 using namespace nix;
 
-struct CmdCopySigs : StorePathsCommand
+struct CmdCopySigs final : StorePathsCommand
 {
     Strings substituterUris;
 
@@ -95,7 +95,7 @@ struct CmdCopySigs : StorePathsCommand
 
 static RegisterCommand r1(make_ref<CmdCopySigs>());
 
-struct CmdSignPaths : StorePathsCommand
+struct CmdSignPaths final : StorePathsCommand
 {
     Path secretKeyFile;
 

@@ -8,7 +8,7 @@
 
 using namespace nix;
 
-struct CmdEdit : InstallableCommand
+struct CmdEdit final : InstallableCommand
 {
     std::string name() override
     {

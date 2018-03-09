@@ -5,7 +5,7 @@
 
 using namespace nix;
 
-struct CmdBuild : MixDryRun, InstallablesCommand
+struct CmdBuild final : MixDryRun, InstallablesCommand
 {
     Path outLink = "result";
 

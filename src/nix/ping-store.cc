@@ -4,7 +4,7 @@
 
 using namespace nix;
 
-struct CmdPingStore : StoreCommand
+struct CmdPingStore final : StoreCommand
 {
     std::string name() override
     {

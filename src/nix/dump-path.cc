@@ -3,7 +3,7 @@
 
 using namespace nix;
 
-struct CmdDumpPath : StorePathCommand
+struct CmdDumpPath final : StorePathCommand
 {
     std::string name() override
     {

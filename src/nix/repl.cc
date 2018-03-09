@@ -675,7 +675,7 @@ std::ostream & NixRepl::printValue(std::ostream & str, Value & v, unsigned int m
     return str;
 }
 
-struct CmdRepl : StoreCommand, MixEvalArgs
+struct CmdRepl final : StoreCommand, MixEvalArgs
 {
     std::vector<std::string> files;
 

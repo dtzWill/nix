@@ -6,7 +6,7 @@
 
 using namespace nix;
 
-struct CmdUpgradeNix : StoreCommand
+struct CmdUpgradeNix final : StoreCommand
 {
     Path profileDir;
 

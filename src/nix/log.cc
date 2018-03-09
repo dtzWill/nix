@@ -6,7 +6,7 @@
 
 using namespace nix;
 
-struct CmdLog : InstallableCommand
+struct CmdLog final : InstallableCommand
 {
     CmdLog()
     {

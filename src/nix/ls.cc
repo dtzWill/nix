@@ -83,7 +83,7 @@ struct MixLs : virtual Args, MixJSON
     }
 };
 
-struct CmdLsStore : StoreCommand, MixLs
+struct CmdLsStore final : StoreCommand, MixLs
 {
     CmdLsStore()
     {
@@ -116,7 +116,7 @@ struct CmdLsStore : StoreCommand, MixLs
     }
 };
 
-struct CmdLsNar : Command, MixLs
+struct CmdLsNar final : Command, MixLs
 {
     Path narPath;
 

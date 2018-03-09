@@ -16,7 +16,7 @@ using namespace nix;
 
 std::string chrootHelperName = "__run_in_chroot";
 
-struct CmdRun : InstallablesCommand
+struct CmdRun final : InstallablesCommand
 {
     std::vector<std::string> command = { "bash" };
     StringSet keep, unset;

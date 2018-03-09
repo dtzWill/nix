@@ -21,7 +21,7 @@ struct MixCat : virtual Args
     }
 };
 
-struct CmdCatStore : StoreCommand, MixCat
+struct CmdCatStore final : StoreCommand, MixCat
 {
     CmdCatStore()
     {
@@ -44,7 +44,7 @@ struct CmdCatStore : StoreCommand, MixCat
     }
 };
 
-struct CmdCatNar : StoreCommand, MixCat
+struct CmdCatNar final : StoreCommand, MixCat
 {
     Path narPath;
 

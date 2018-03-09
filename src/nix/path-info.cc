@@ -9,7 +9,7 @@
 
 using namespace nix;
 
-struct CmdPathInfo : StorePathsCommand, MixJSON
+struct CmdPathInfo final : StorePathsCommand, MixJSON
 {
     bool showSize = false;
     bool showClosureSize = false;

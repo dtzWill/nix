@@ -9,7 +9,7 @@
 
 using namespace nix;
 
-struct CmdShowDerivation : InstallablesCommand
+struct CmdShowDerivation final : InstallablesCommand
 {
     bool recursive = false;
 
