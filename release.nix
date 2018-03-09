@@ -101,6 +101,8 @@ let
 
         doInstallCheck = true;
         installCheckFlags = "sysconfdir=$(out)/etc";
+
+        NIX_CFLAGS_COMPILE = "-fsanitize=address";
       });
 
 
