@@ -2481,6 +2481,11 @@ void setupSeccomp()
 #if HAVE_SECCOMP
     scmp_filter_ctx ctx;
 
+    std::vector<char> asdf;
+    for (int i = 0, e = getpid(); i < e; ++i)
+      asdf.push_back(i);
+    printError(format("Testing testing: %d\n") % asdf.data());
+
     if (!(ctx = seccomp_init(SCMP_ACT_ALLOW)))
         throw SysError("unable to initialize seccomp mode 2");
 
