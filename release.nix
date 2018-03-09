@@ -2,11 +2,13 @@
 , nixpkgs ? builtins.fetchGit https://github.com/NixOS/nixpkgs.git
 , officialRelease ? false
 , systems ? [ "x86_64-linux" "i686-linux" "x86_64-darwin" "aarch64-linux" ]
+, nixpkgsArgs ? {} #  localSystem ? { config = "x86_64-unknown-linux-musl"; } }
+#, nixpkgsArgs ? { localSystem ? { config = "x86_64-unknown-linux-musl"; } }
 }:
 
 let
 
-  pkgs = import nixpkgs { localSystem = { config = "x86_64-unknown-linux-musl"; }; };
+  pkgs = import nixpkgs nixpkgsArgs;
 
   jobs = rec {
 
