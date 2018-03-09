@@ -70,7 +70,7 @@ let
         #stdenv = llvmPackages_6.libcxxStdenv;
         stdenv = llvmPackages_6.stdenv;
         #extraCFLAGS = "-g -O1";
-        extraCFLAGS = "-fsanitize=address -g -O0";
+        extraCFLAGS = "-fsanitize=address -g -fno-omit-frame-pointer";
       in
       releaseTools.nixBuild {
         name = "nix";
@@ -124,6 +124,10 @@ let
         installCheckFlags = "sysconfdir=$(out)/etc";
 
         hardeningDisable = [ "all" ];
+
+        preInstallCheck = ''
+          export ASAN_OPTIONS=detect_leaks=0
+        '';
       });
 
 
