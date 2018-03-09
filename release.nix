@@ -92,9 +92,10 @@ let
               apis = ["s3"];
               customMemoryManagement = false;
             }).overrideDerivation (o: {
-              preConfigure = o.preConfigure + ''
-                NIX_CFLAGS_COMPILE+=" -Wno-error ${extraCFLAGS}"
-              '';
+              # :(
+              #preConfigure = o.preConfigure + ''
+              #  NIX_CFLAGS_COMPILE+=" -Wno-error ${extraCFLAGS}"
+              #'';
               hardeningDisable = [ "all" ];
             }));
 
