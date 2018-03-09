@@ -1783,6 +1783,7 @@ PathSet DerivationGoal::exportReferences(PathSet storePaths)
 static std::once_flag dns_resolve_flag;
 
 static void preloadNSS() {
+#ifdef __GLIBC__
     /* builtin:fetchurl can trigger a DNS lookup, which with glibc can trigger a dynamic library load of
        one of the glibc NSS libraries in a sandboxed child, which will fail unless the library's already
        been loaded in the parent. So we force a lookup of an invalid domain to force the NSS machinery to
@@ -1794,6 +1795,7 @@ static void preloadNSS() {
             if (res) freeaddrinfo(res);
         }
     });
+#endif
 }
 
 void DerivationGoal::startBuilder()
