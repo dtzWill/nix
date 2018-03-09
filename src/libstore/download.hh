@@ -57,6 +57,8 @@ struct Downloader
         const Hash & expectedHash = Hash(), string * effectiveUri = nullptr);
 
     enum Error { NotFound, Forbidden, Misc, Transient, Interrupted };
+
+    virtual ~Downloader() = default;
 };
 
 /* Return a shared Downloader object. Using this object is preferred

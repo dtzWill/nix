@@ -26,6 +26,8 @@ public:
     virtual std::string readFile(const Path & path) = 0;
 
     virtual std::string readLink(const Path & path) = 0;
+
+    virtual ~FSAccessor() = default;
 };
 
 }
