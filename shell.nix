@@ -1,10 +1,10 @@
-{ useClang ? false }:
+{ useClang ? true }:
 
 with import <nixpkgs> { localSystem = { config = "x86_64-unknown-linux-musl"; }; };
 
 with import ./release-common.nix { inherit pkgs; };
 
-(if useClang then clangStdenv else stdenv).mkDerivation {
+(if useClang then llvmPackages_6.stdenv else stdenv).mkDerivation {
   name = "nix";
 
   buildInputs =
