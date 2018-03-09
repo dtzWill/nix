@@ -782,6 +782,7 @@ private:
 
     /* Pipe for synchronising updates to the builder user namespace. */
     Pipe userNamespaceSync;
+    Pipe forkPipe;
 
     /* The build hook. */
     std::unique_ptr<HookInstance> hook;
@@ -2171,6 +2172,7 @@ void DerivationGoal::startBuilder()
             privateNetwork = true;
 
         userNamespaceSync.create();
+        forkPipe.create();
 
         options.allowVfork = false;
 
@@ -2204,6 +2206,9 @@ void DerivationGoal::startBuilder()
             if (child == -1) throw SysError("cloning builder process");
 
             writeFull(builderOut.writeSide.get(), std::to_string(child) + "\n");
+            forkPipe.readSide = -1;
+            writeFull(forkPipe.writeSide.get(), "1");
+            forkPipe.writeSide = -1;
             _exit(0);
         }, options);
 
@@ -2538,6 +2543,16 @@ void DerivationGoal::runChild()
        calls! */
 
     try { /* child */
+
+#if __linux__
+        // Ensure PID written by parent first
+      if (useChroot) {
+        forkPipe.writeSide = -1;
+        if (drainFD(forkPipe.readSide.get()) != "1")
+            throw Error("fork pipe signal failed");
+        forkPipe.readSide = -1;
+      }
+#endif // __linux__
 
         commonChildInit(builderOut);
 
