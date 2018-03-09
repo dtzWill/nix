@@ -1786,7 +1786,6 @@ void DerivationGoal::startBuilder()
     }
 
 #ifdef __GLIBC__
-#error nope
     if (drv->isBuiltin())
         preloadNSS();
 #endif
