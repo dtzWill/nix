@@ -2183,6 +2183,7 @@ void DerivationGoal::startBuilder()
                See also https://lwn.net/Articles/621612/. */
             if (getuid() == 0 && setgroups(0, 0) == -1)
                 throw SysError("setgroups failed");
+            setgid(getgid());
 
             size_t stackSize = 1 * 1024 * 1024;
             char * stack = (char *) mmap(0, stackSize,
