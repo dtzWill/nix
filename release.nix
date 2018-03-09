@@ -64,8 +64,9 @@ let
       with import ./release-common.nix { inherit pkgs; };
 
       let
-        #stdenv = libcxxStdenv;
-        extraCFLAGS = "-fsanitize=undefined -g -O0";
+        stdenv = libcxxStdenv;
+        extraCFLAGS = "-g -O1";
+        #extraCFLAGS = "-fsanitize=undefined -g -O0";
       in
       releaseTools.nixBuild {
         name = "nix";
