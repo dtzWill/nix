@@ -59,14 +59,14 @@ let
 
     build = pkgs.lib.genAttrs systems (system:
 
-      with import nixpkgs { localSystem = { config = "x86_64-unknown-linux-musl"; }; };
+      with import nixpkgs nixpkgsArgs;
 
       with import ./release-common.nix { inherit pkgs; };
 
       let
         stdenv = llvmPackages_6.libcxxStdenv;
-        extraCFLAGS = "-g -O1";
-        #extraCFLAGS = "-fsanitize=undefined -g -O0";
+        #extraCFLAGS = "-g -O1";
+        extraCFLAGS = "-fsanitize=address -g -O0";
       in
       releaseTools.nixBuild {
         name = "nix";
