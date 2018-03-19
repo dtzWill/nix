@@ -63,7 +63,10 @@ let
 
       with import ./release-common.nix { inherit pkgs; };
 
+      let stdenv = llvmPackages_6.stdenv; in
+
       releaseTools.nixBuild {
+        inherit stdenv;
         name = "nix";
         src = tarball;
 
