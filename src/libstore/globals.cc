@@ -26,6 +26,36 @@ namespace nix {
     #define DEFAULT_ALLOWED_IMPURE_PREFIXES ""
 #endif
 
+
+#ifdef USE_SELF_RELATIVE_PATHS
+#warning "Using self-relative paths, ignoring compile-time configuration"
+
+static const std::string SELF{canonPath(readLink("/proc/self/exe"))};
+
+#undef NIX_PREFIX
+#undef NIX_DATA_DIR
+#undef NIX_LIBEXEC_DIR
+#undef NIX_BIN_DIR
+#undef NIX_MAN_DIR
+#undef SANDBOX_SHELL
+
+static const std::string NIX_PREFIX{canonPath(dirOf(dirOf(SELF)))};
+static const std::string NIX_DATA_DIR{NIX_PREFIX + "/share"};
+static const std::string NIX_LIBEXEC_DIR{NIX_PREFIX + "/libexec"};
+static const std::string NIX_BIN_DIR{NIX_PREFIX + "/bin"};
+static const std::string NIX_MAN_DIR{NIX_PREFIX + "/share/man"};
+static const std::string SANDBOX_SHELL{NIX_PREFIX + "/libexec/nix/bash"};
+
+#define NIX_PREFIX (NIX_PREFIX)
+#define NIX_DATA_DIR (NIX_DATA_DIR)
+#define NIX_LIBEXEC_DIR (NIX_LIBEXEC_DIR)
+#define NIX_BIN_DIR (NIX_BIN_DIR)
+#define NIX_MAN_DIR (NIX_MAN_DIR)
+#define SANDBOX_SHELL (SANDBOX_SHELL)
+
+#endif // USE_SELF_RELATIVE_PATHS
+
+
 Settings settings;
 
 Settings::Settings()
@@ -63,7 +93,7 @@ Settings::Settings()
     }
 
 #if defined(__linux__) && defined(SANDBOX_SHELL)
-    sandboxPaths = tokenizeString<StringSet>("/bin/sh=" SANDBOX_SHELL);
+    sandboxPaths = tokenizeString<StringSet>("/bin/sh=" + std::string(SANDBOX_SHELL));
 #endif
 
     allowedImpureHostPrefixes = tokenizeString<StringSet>(DEFAULT_ALLOWED_IMPURE_PREFIXES);

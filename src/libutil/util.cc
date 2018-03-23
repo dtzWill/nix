@@ -37,6 +37,17 @@ extern char * * environ;
 
 namespace nix {
 
+#if USE_SELF_RELATIVE_PATHS
+// XXX: dup'd in libstore/globals.cc
+#undef NIX_PREFIX
+#undef NIX_LIBEXEC_DIR
+static const std::string SELF{canonPath(readLink("/proc/self/exe"))};
+static const std::string NIX_PREFIX{canonPath(dirOf(dirOf(SELF)))};
+static const std::string NIX_LIBEXEC_DIR{NIX_PREFIX + "/libexec"};
+#define NIX_PREFIX (NIX_PREFIX)
+#define NIX_LIBEXEC_DIR (NIX_LIBEXEC_DIR)
+#endif // USE_SELF_RELATIVE_PATHS
+
 
 BaseError & BaseError::addPrefix(const FormatOrString & fs)
 {
@@ -1004,7 +1015,7 @@ void runProgram2(const RunOptions & options)
         if (options.searchPath) {
             // Prepend our utilities to PATH
             auto unixPath = tokenizeString<Strings>(getEnv("PATH"), ":");
-            unixPath.push_front(NIX_LIBEXEC_DIR "/nix");
+            unixPath.push_front(std::string(NIX_LIBEXEC_DIR) + "/nix");
             setenv("PATH", concatStringsSep(":", unixPath).c_str(), 1);
 
             execvp(options.program.c_str(), stringsToCharPtrs(args_).data());
