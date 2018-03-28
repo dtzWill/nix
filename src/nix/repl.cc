@@ -145,6 +145,7 @@ void NixRepl::mainLoop(const std::vector<std::string> & files)
     createDirs(dirOf(historyFile));
     linenoiseHistorySetMaxLen(1000);
     linenoiseHistoryLoad(historyFile.c_str());
+    linenoiseSetListAll(true);
 
     curRepl = this;
     linenoiseSetCompletionCallback(completionCallback);
