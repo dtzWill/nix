@@ -672,7 +672,7 @@ void Downloader::download(DownloadRequest && request, Sink & sink)
         state->avail.notify_one();
     };
 
-    getDownloader()->enqueueDownload(request,
+    enqueueDownload(request,
         {[_state](std::future<DownloadResult> fut) {
             auto state(_state->lock());
             state->quit = true;
