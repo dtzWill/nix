@@ -45,6 +45,7 @@ static const std::string NIX_LIBEXEC_DIR{NIX_PREFIX + "/libexec"};
 static const std::string NIX_BIN_DIR{NIX_PREFIX + "/bin"};
 static const std::string NIX_MAN_DIR{NIX_PREFIX + "/share/man"};
 static const std::string SANDBOX_SHELL{NIX_PREFIX + "/libexec/nix/bash"};
+static const std::string SSL_CERT_FILE_INCLUDED{NIX_PREFIX + "/etc/ssl/certs/ca-bundle.crt"};
 
 #define NIX_PREFIX (NIX_PREFIX)
 #define NIX_DATA_DIR (NIX_DATA_DIR)
@@ -54,6 +55,14 @@ static const std::string SANDBOX_SHELL{NIX_PREFIX + "/libexec/nix/bash"};
 #define SANDBOX_SHELL (SANDBOX_SHELL)
 
 #endif // USE_SELF_RELATIVE_PATHS
+
+static const std::string SSL_CERT_FILE_FALLBACK_PATHS[] = {
+  "/etc/ssl/certs/ca-certificates.crt",
+  "/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt",
+#ifdef USE_SELF_RELATIVE_PATHS
+  SSL_CERT_FILE_INCLUDED,
+#endif // USE_SELF_RELATIVE_PATHS
+};
 
 
 Settings settings;
@@ -76,7 +85,7 @@ Settings::Settings()
 
     caFile = getEnv("NIX_SSL_CERT_FILE", getEnv("SSL_CERT_FILE", ""));
     if (caFile == "") {
-        for (auto & fn : {"/etc/ssl/certs/ca-certificates.crt", "/nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt"})
+        for (auto & fn : SSL_CERT_FILE_FALLBACK_PATHS)
             if (pathExists(fn)) {
                 caFile = fn;
                 break;
