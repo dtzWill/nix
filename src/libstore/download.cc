@@ -7,6 +7,7 @@
 #include "s3.hh"
 #include "compression.hh"
 #include "pathlocks.hh"
+#include "finally.hh"
 
 #ifdef ENABLE_S3
 #include <aws/core/client/ClientConfiguration.h>
@@ -72,8 +73,7 @@ struct CurlDownloader : public Downloader
         DownloadResult result;
         Activity act;
         bool done = false; // whether either the success or failure function has been called
-        std::function<void(const DownloadResult &)> success;
-        std::function<void(std::exception_ptr exc)> failure;
+        Callback<DownloadResult> callback;
         CURL * req = 0;
         bool active = false; // whether the handle has been added to the multi object
         std::string status;
@@ -88,10 +88,13 @@ struct CurlDownloader : public Downloader
 
         std::string encoding;
 
-        DownloadItem(CurlDownloader & downloader, const DownloadRequest & request)
+        DownloadItem(CurlDownloader & downloader,
+            const DownloadRequest & request,
+            Callback<DownloadResult> callback)
             : downloader(downloader)
             , request(request)
             , act(*logger, lvlTalkative, actDownload, fmt("downloading '%s'", request.uri), {request.uri}, request.parentAct)
+            , callback(callback)
         {
             if (!request.expectedETag.empty())
                 requestHeaders = curl_slist_append(requestHeaders, ("If-None-Match: " + request.expectedETag).c_str());
@@ -120,13 +123,16 @@ struct CurlDownloader : public Downloader
         {
             assert(!done);
             done = true;
-            callFailure(failure, std::make_exception_ptr(e));
+            callback.rethrow(std::make_exception_ptr(e));
         }
 
         size_t writeCallback(void * contents, size_t size, size_t nmemb)
         {
             size_t realSize = size * nmemb;
-            result.data->append((char *) contents, realSize);
+            if (request.dataCallback)
+                request.dataCallback((char *) contents, realSize);
+            else
+                result.data->append((char *) contents, realSize);
             return realSize;
         }
 
@@ -307,11 +313,11 @@ struct CurlDownloader : public Downloader
                 try {
                     if (request.decompress)
                         result.data = decodeContent(encoding, ref<std::string>(result.data));
-                    callSuccess(success, failure, const_cast<const DownloadResult &>(result));
                     act.progress(result.data->size(), result.data->size());
+                    callback(std::move(result));
                 } catch (...) {
                     done = true;
-                    callFailure(failure, std::current_exception());
+                    callback.rethrow();
                 }
             } else {
                 // We treat most errors as transient, but won't retry when hopeless
@@ -563,13 +569,12 @@ struct CurlDownloader : public Downloader
     }
 
     void enqueueDownload(const DownloadRequest & request,
-        std::function<void(const DownloadResult &)> success,
-        std::function<void(std::exception_ptr exc)> failure) override
+        Callback<DownloadResult> callback) override
     {
         /* Ugly hack to support s3:// URIs. */
         if (hasPrefix(request.uri, "s3://")) {
             // FIXME: do this on a worker thread
-            sync2async<DownloadResult>(success, failure, [&]() -> DownloadResult {
+            try {
 #ifdef ENABLE_S3
                 S3Helper s3Helper("", Aws::Region::US_EAST_1); // FIXME: make configurable
                 auto slash = request.uri.find('/', 5);
@@ -583,27 +588,22 @@ struct CurlDownloader : public Downloader
                 if (!s3Res.data)
                     throw DownloadError(NotFound, fmt("S3 object '%s' does not exist", request.uri));
                 res.data = s3Res.data;
-                return res;
+                callback(std::move(res));
 #else
                 throw nix::Error("cannot download '%s' because Nix is not built with S3 support", request.uri);
 #endif
-            });
+            } catch (...) { callback.rethrow(); }
             return;
         }
 
-        auto item = std::make_shared<DownloadItem>(*this, request);
-        item->success = success;
-        item->failure = failure;
-        enqueueItem(item);
+        enqueueItem(std::make_shared<DownloadItem>(*this, request, callback));
     }
 };
 
 ref<Downloader> getDownloader()
 {
-    static std::shared_ptr<Downloader> downloader;
-    static std::once_flag downloaderCreated;
-    std::call_once(downloaderCreated, [&]() { downloader = makeDownloader(); });
-    return ref<Downloader>(downloader);
+    static ref<Downloader> downloader = makeDownloader();
+    return downloader;
 }
 
 ref<Downloader> makeDownloader()
@@ -615,14 +615,105 @@ std::future<DownloadResult> Downloader::enqueueDownload(const DownloadRequest & 
 {
     auto promise = std::make_shared<std::promise<DownloadResult>>();
     enqueueDownload(request,
-        [promise](const DownloadResult & result) { promise->set_value(result); },
-        [promise](std::exception_ptr exc) { promise->set_exception(exc); });
+        {[promise](std::future<DownloadResult> fut) {
+            try {
+                promise->set_value(fut.get());
+            } catch (...) {
+                promise->set_exception(std::current_exception());
+            }
+        }});
     return promise->get_future();
 }
 
 DownloadResult Downloader::download(const DownloadRequest & request)
 {
     return enqueueDownload(request).get();
+}
+
+void Downloader::download(DownloadRequest && request, Sink & sink)
+{
+    /* Note: we can't call 'sink' via request.dataCallback, because
+       that would cause the sink to execute on the downloader
+       thread. If 'sink' is a coroutine, this will fail. Also, if the
+       sink is expensive (e.g. one that does decompression and writing
+       to the Nix store), it would stall the download thread too much.
+       Therefore we use a buffer to communicate data between the
+       download thread and the calling thread. */
+
+    struct State {
+        bool quit = false;
+        std::exception_ptr exc;
+        std::string data;
+        std::condition_variable avail, request;
+    };
+
+    auto _state = std::make_shared<Sync<State>>();
+
+    /* In case of an exception, wake up the download thread. FIXME:
+       abort the download request. */
+    Finally finally([&]() {
+        auto state(_state->lock());
+        state->quit = true;
+        state->request.notify_one();
+    });
+
+    request.dataCallback = [_state](char * buf, size_t len) {
+
+        auto state(_state->lock());
+
+        if (state->quit) return;
+
+        /* If the buffer is full, then go to sleep until the calling
+           thread wakes us up (i.e. when it has removed data from the
+           buffer). Note: this does stall the download thread. */
+        while (state->data.size() > 1024 * 1024) {
+            if (state->quit) return;
+            debug("download buffer is full; going to sleep");
+            state.wait(state->request);
+        }
+
+        /* Append data to the buffer and wake up the calling
+           thread. */
+        state->data.append(buf, len);
+        state->avail.notify_one();
+    };
+
+    enqueueDownload(request,
+        {[_state](std::future<DownloadResult> fut) {
+            auto state(_state->lock());
+            state->quit = true;
+            try {
+                fut.get();
+            } catch (...) {
+                state->exc = std::current_exception();
+            }
+            state->avail.notify_one();
+            state->request.notify_one();
+        }});
+
+    auto state(_state->lock());
+
+    while (true) {
+        checkInterrupt();
+
+        if (state->quit) {
+            if (state->exc) std::rethrow_exception(state->exc);
+            break;
+        }
+
+        /* If no data is available, then wait for the download thread
+           to wake us up. */
+        if (state->data.empty())
+            state.wait(state->avail);
+
+        /* If data is available, then flush it to the sink and wake up
+           the download thread if it's blocked on a full buffer. */
+        if (!state->data.empty()) {
+            sink((unsigned char *) state->data.data(), state->data.size());
+            state->data.clear();
+            state->request.notify_one();
+        }
+    }
 }
 
 Path Downloader::downloadCached(ref<Store> store, const string & url_, bool unpack, string name, const Hash & expectedHash, string * effectiveUrl)

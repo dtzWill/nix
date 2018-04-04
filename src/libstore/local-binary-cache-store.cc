@@ -34,18 +34,14 @@ protected:
         const std::string & data,
         const std::string & mimeType) override;
 
-    void getFile(const std::string & path,
-        std::function<void(std::shared_ptr<std::string>)> success,
-        std::function<void(std::exception_ptr exc)> failure) override
+    void getFile(const std::string & path, Sink & sink) override
     {
-        sync2async<std::shared_ptr<std::string>>(success, failure, [&]() {
-            try {
-                return std::make_shared<std::string>(readFile(binaryCacheDir + "/" + path));
-            } catch (SysError & e) {
-                if (e.errNo == ENOENT) return std::shared_ptr<std::string>();
-                throw;
-            }
-        });
+        try {
+            readFile(binaryCacheDir + "/" + path, sink);
+        } catch (SysError & e) {
+            if (e.errNo == ENOENT)
+                throw NoSuchBinaryCacheFile("file '%s' does not exist in binary cache", path);
+        }
     }
 
     PathSet queryAllValidPaths() override

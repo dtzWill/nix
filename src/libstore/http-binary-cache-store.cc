@@ -79,28 +79,42 @@ protected:
         }
     }
 
-    void getFile(const std::string & path,
-        std::function<void(std::shared_ptr<std::string>)> success,
-        std::function<void(std::exception_ptr exc)> failure) override
+    DownloadRequest makeRequest(const std::string & path)
     {
         DownloadRequest request(cacheUri + "/" + path);
         request.tries = 8;
+        return request;
+    }
+
+    void getFile(const std::string & path, Sink & sink) override
+    {
+        auto request(makeRequest(path));
+        try {
+            getDownloader()->download(std::move(request), sink);
+        } catch (DownloadError & e) {
+            if (e.error == Downloader::NotFound || e.error == Downloader::Forbidden)
+                throw NoSuchBinaryCacheFile("file '%s' does not exist in binary cache '%s'", path, getUri());
+            throw;
+        }
+    }
+
+    void getFile(const std::string & path,
+        Callback<std::shared_ptr<std::string>> callback) override
+    {
+        auto request(makeRequest(path));
 
         getDownloader()->enqueueDownload(request,
-            [success](const DownloadResult & result) {
-                success(result.data);
-            },
-            [success, failure](std::exception_ptr exc) {
+            {[callback](std::future<DownloadResult> result) {
                 try {
-                    std::rethrow_exception(exc);
+                    callback(result.get().data);
                 } catch (DownloadError & e) {
                     if (e.error == Downloader::NotFound || e.error == Downloader::Forbidden)
-                        return success(0);
-                    failure(exc);
+                        return callback(std::shared_ptr<std::string>());
+                    callback.rethrow();
                 } catch (...) {
-                    failure(exc);
+                    callback.rethrow();
                 }
-            });
+            }});
     }
 
 };
