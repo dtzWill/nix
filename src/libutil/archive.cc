@@ -323,7 +323,7 @@ struct RestoreSink : ParseSink
                filesystem doesn't support preallocation (e.g. on
                OpenSolaris).  Since preallocation is just an
                optimisation, ignore it. */
-            if (errno && errno != EINVAL)
+            if (errno && errno != EINVAL && errno != EOPNOTSUPP && errno != ENOSYS)
                 throw SysError(format("preallocating file of %1% bytes") % len);
         }
 #endif
