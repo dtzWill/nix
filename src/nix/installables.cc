@@ -8,6 +8,15 @@
 #include "store-api.hh"
 #include "shared.hh"
 
+#if HAVE_BOEHMGC
+#include <gc/gc.h>
+#include <gc/gc_cpp.h>
+
+#define NEWNOGC new (NoGC)
+#else
+#define NEWNOGC new
+#endif
+
 #include <regex>
 
 namespace nix {
@@ -28,7 +37,7 @@ Value * SourceExprCommand::getSourceExpr(EvalState & state)
 
     auto sToplevel = state.symbols.create("_toplevel");
 
-    vSourceExpr = state.allocValue();
+    vSourceExpr = NEWNOGC Value();
 
     if (file != "")
         state.evalFile(lookupFileArg(state, file), *vSourceExpr);
