@@ -30,6 +30,8 @@ using namespace std::string_literals;
 
 namespace nix {
 
+void DownloadError::anchor() {}
+
 struct DownloadSettings : Config
 {
     Setting<bool> enableHttp2{this, true, "http2",

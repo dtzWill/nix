@@ -83,6 +83,8 @@ public:
     DownloadError(Downloader::Error error, const FormatOrString & fs)
         : Error(fs), error(error)
     { }
+private:
+    void anchor() override;
 };
 
 bool isUri(const string & s);
