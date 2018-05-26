@@ -29,6 +29,8 @@ using namespace std::string_literals;
 
 namespace nix {
 
+void DownloadError::anchor() {}
+
 std::string resolveUri(const std::string & uri)
 {
     if (uri.compare(0, 8, "channel:") == 0)
