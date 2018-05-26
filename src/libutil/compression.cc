@@ -17,6 +17,9 @@ namespace nix {
 
 static const size_t bufSize = 32 * 1024;
 
+void UnknownCompressionMethod::anchor() {}
+void CompressionError::anchor() {}
+
 // Don't feed brotli too much at once.
 struct ChunkedCompressionSink : CompressionSink
 {
