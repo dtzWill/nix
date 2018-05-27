@@ -71,6 +71,9 @@ void mainWrapped(int argc, char * * argv)
     initNix();
     initGC();
 
+    // Ensure this GC didn't muck with our handler
+    detectStackOverflow();
+
     auto dryRun = false;
     auto runEnv = std::regex_search(argv[0], std::regex("nix-shell$"));
     auto pure = false;

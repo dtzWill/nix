@@ -46,6 +46,9 @@ int main(int argc, char * * argv)
         initNix();
         initGC();
 
+        // Ensure this GC didn't muck with our handler
+        detectStackOverflow();
+
         HashType ht = htSHA256;
         std::vector<string> args;
         bool printPath = getEnv("PRINT_PATH") != "";
