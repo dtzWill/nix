@@ -89,6 +89,9 @@ int main(int argc, char * * argv)
         initNix();
         initGC();
 
+        // Ensure this GC didn't muck with our handler
+        detectStackOverflow();
+
         Strings files;
         bool readStdin = false;
         bool fromArgs = false;

@@ -80,6 +80,9 @@ void mainWrapped(int argc, char * * argv)
     initNix();
     initGC();
 
+    // Ensure this GC didn't muck with our handler
+    detectStackOverflow();
+
     programPath = argv[0];
     string programName = baseNameOf(programPath);
 

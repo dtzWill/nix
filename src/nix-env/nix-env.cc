@@ -1309,6 +1309,9 @@ int main(int argc, char * * argv)
         initNix();
         initGC();
 
+        // Ensure this GC didn't muck with our handler
+        detectStackOverflow();
+
         Strings opFlags, opArgs;
         Operation op = 0;
         RepairFlag repair = NoRepair;
