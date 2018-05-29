@@ -31,6 +31,13 @@ namespace nix {
 
 void DownloadError::anchor() {}
 
+double getTime()
+{
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+    return tv.tv_sec + (tv.tv_usec / 1000000.0);
+}
+
 std::string resolveUri(const std::string & uri)
 {
     if (uri.compare(0, 8, "channel:") == 0)
