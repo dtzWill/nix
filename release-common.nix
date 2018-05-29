@@ -47,6 +47,13 @@ rec {
       autoreconfHook
     ];
 
+  curl = pkgs.curl.overrideAttrs (o: {
+    patches = (o.patches or []) ++ [
+      /*(builtins.fetchurl https://github.com/curl/curl/pull/2600.patch)*/
+      ./0001-Revert-threaded-resolver-track-resolver-time-and-set.patch
+    ];
+  });
+
   buildDeps =
     [ curl
       bzip2 xz brotli
