@@ -48,7 +48,10 @@ rec {
     ];
 
   buildDeps =
-    [ curl
+  [ (curl.overrideAttrs(o: {
+    src = builtins.fetchGit /home/will/src/curl;
+    nativeBuildInputs = (o.nativeBuildInputs or []) ++ [ autoreconfHook ];
+  }))
       bzip2 xz brotli
       openssl pkgconfig sqlite boehmgc
       boost
