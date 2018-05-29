@@ -51,6 +51,7 @@ rec {
   [ (curl.overrideAttrs(o: {
     src = builtins.fetchGit /home/will/src/curl;
     nativeBuildInputs = (o.nativeBuildInputs or []) ++ [ autoreconfHook ];
+    preConfigure = "echo no preconfigure";
   }))
       bzip2 xz brotli
       openssl pkgconfig sqlite boehmgc
