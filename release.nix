@@ -76,6 +76,9 @@ let
 
         preBuild = "unset NIX_INDENT_MAKE";
 
+        NIX_CFLAGS_COMPILE = [ "-O1" "-g" ];
+        dontStrip = true;
+
         installFlags = "sysconfdir=$(out)/etc";
 
         doInstallCheck = true;
