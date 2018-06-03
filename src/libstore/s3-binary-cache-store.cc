@@ -281,8 +281,8 @@ struct S3BinaryCacheStoreImpl : public S3BinaryCacheStore
 
         auto maxThreads = std::thread::hardware_concurrency();
 
-        static std::shared_ptr<Aws::Utils::Threading::PooledThreadExecutor>
-            executor = std::make_shared<Aws::Utils::Threading::PooledThreadExecutor>(maxThreads);
+        auto executor =
+            std::make_shared<Aws::Utils::Threading::PooledThreadExecutor>(maxThreads);
 
         TransferManagerConfiguration transferConfig(executor.get());
 
