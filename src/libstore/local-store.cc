@@ -630,17 +630,15 @@ uint64_t LocalStore::addValidPath(State & state,
 
 
 void LocalStore::queryPathInfoUncached(const Path & path,
-    std::function<void(std::shared_ptr<ValidPathInfo>)> success,
-    std::function<void(std::exception_ptr exc)> failure)
+    Callback<std::shared_ptr<ValidPathInfo>> callback)
 {
-    sync2async<std::shared_ptr<ValidPathInfo>>(success, failure, [&]() {
-
+    try {
         auto info = std::make_shared<ValidPathInfo>();
         info->path = path;
 
         assertStorePath(path);
 
-        return retrySQLite<std::shared_ptr<ValidPathInfo>>([&]() {
+        callback(retrySQLite<std::shared_ptr<ValidPathInfo>>([&]() {
             auto state(_state.lock());
 
             /* Get the path info. */
@@ -680,8 +678,9 @@ void LocalStore::queryPathInfoUncached(const Path & path,
                 info->references.insert(useQueryReferences.getStr(0));
 
             return info;
-        });
-    });
+        }));
+
+    } catch (...) { callback.rethrow(); }
 }
 
 
@@ -977,7 +976,8 @@ const PublicKeys & LocalStore::getPublicKeys()
 void LocalStore::addToStore(const ValidPathInfo & info, Source & source,
     RepairFlag repair, CheckSigsFlag checkSigs, std::shared_ptr<FSAccessor> accessor)
 {
-    assert(info.narHash);
+    if (!info.narHash)
+        throw Error("cannot add path '%s' because it lacks a hash", info.path);
 
     if (requireSigs && checkSigs && !info.checkSignatures(*this, getPublicKeys()))
         throw Error("cannot add path '%s' because it lacks a valid signature", info.path);

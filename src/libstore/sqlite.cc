@@ -13,6 +13,7 @@ void SQLiteBusy::anchor() {}
 [[noreturn]] void throwSQLiteError(sqlite3 * db, const FormatOrString & fs)
 {
     int err = sqlite3_errcode(db);
+    int exterr = sqlite3_extended_errcode(db);
 
     auto path = sqlite3_db_filename(db, nullptr);
     if (!path) path = "(in-memory)";
@@ -24,7 +25,7 @@ void SQLiteBusy::anchor() {}
             : fmt("SQLite database '%s' is busy", path));
     }
     else
-        throw SQLiteError("%s: %s (in '%s')", fs.s, sqlite3_errstr(err), path);
+        throw SQLiteError("%s: %s (in '%s')", fs.s, sqlite3_errstr(exterr), path);
 }
 
 SQLite::SQLite(const Path & path)

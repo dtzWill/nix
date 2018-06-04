@@ -364,24 +364,23 @@ struct S3BinaryCacheStoreImpl : public S3BinaryCacheStore
             uploadFile(path, data, mimeType, "");
     }
 
-    void getFile(const std::string & path,
-        std::function<void(std::shared_ptr<std::string>)> success,
-        std::function<void(std::exception_ptr exc)> failure) override
+    void getFile(const std::string & path, Sink & sink) override
     {
-        sync2async<std::shared_ptr<std::string>>(success, failure, [&]() {
-            stats.get++;
+        stats.get++;
 
-            auto res = s3Helper.getObject(bucketName, path);
+        // FIXME: stream output to sink.
+        auto res = s3Helper.getObject(bucketName, path);
 
-            stats.getBytes += res.data ? res.data->size() : 0;
-            stats.getTimeMs += res.durationMs;
+        stats.getBytes += res.data ? res.data->size() : 0;
+        stats.getTimeMs += res.durationMs;
 
-            if (res.data)
-                printTalkative("downloaded 's3://%s/%s' (%d bytes) in %d ms",
-                    bucketName, path, res.data->size(), res.durationMs);
+        if (res.data) {
+            printTalkative("downloaded 's3://%s/%s' (%d bytes) in %d ms",
+                bucketName, path, res.data->size(), res.durationMs);
 
-            return res.data;
-        });
+            sink((unsigned char *) res.data->data(), res.data->size());
+        } else
+            throw NoSuchBinaryCacheFile("file '%s' does not exist in binary cache '%s'", path, getUri());
     }
 
     PathSet queryAllValidPaths() override

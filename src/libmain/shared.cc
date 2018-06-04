@@ -123,7 +123,7 @@ void initNix()
     opensslLocks = std::vector<std::mutex>(CRYPTO_num_locks());
     CRYPTO_set_locking_callback(opensslLockCallback);
 
-    settings.loadConfFile();
+    loadConfFile();
 
     startSignalHandlerThread();
 

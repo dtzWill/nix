@@ -7,6 +7,7 @@
 #include "globals.hh"
 #include "derivations.hh"
 #include "pool.hh"
+#include "finally.hh"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -187,10 +188,11 @@ void RemoteStore::setOptions(Connection & conn)
        << settings.useSubstitutes;
 
     if (GET_PROTOCOL_MINOR(conn.daemonVersion) >= 12) {
-        auto overrides = settings.getSettings(true);
+        std::map<std::string, Config::SettingInfo> overrides;
+        globalConfig.getSettings(overrides, true);
         conn.to << overrides.size();
         for (auto & i : overrides)
-            conn.to << i.first << i.second;
+            conn.to << i.first << i.second.value;
     }
 
     conn.processStderr();
@@ -293,38 +295,40 @@ void RemoteStore::querySubstitutablePathInfos(const PathSet & paths,
 
 
 void RemoteStore::queryPathInfoUncached(const Path & path,
-    std::function<void(std::shared_ptr<ValidPathInfo>)> success,
-    std::function<void(std::exception_ptr exc)> failure)
+    Callback<std::shared_ptr<ValidPathInfo>> callback)
 {
-    sync2async<std::shared_ptr<ValidPathInfo>>(success, failure, [&]() {
-        auto conn(connections->get());
-        conn->to << wopQueryPathInfo << path;
-        try {
-            conn->processStderr();
-        } catch (Error & e) {
-            // Ugly backwards compatibility hack.
-            if (e.msg().find("is not valid") != std::string::npos)
-                throw InvalidPath(e.what());
-            throw;
+    try {
+        std::shared_ptr<ValidPathInfo> info;
+        {
+            auto conn(connections->get());
+            conn->to << wopQueryPathInfo << path;
+            try {
+                conn->processStderr();
+            } catch (Error & e) {
+                // Ugly backwards compatibility hack.
+                if (e.msg().find("is not valid") != std::string::npos)
+                    throw InvalidPath(e.what());
+                throw;
+            }
+            if (GET_PROTOCOL_MINOR(conn->daemonVersion) >= 17) {
+                bool valid; conn->from >> valid;
+                if (!valid) throw InvalidPath(format("path '%s' is not valid") % path);
+            }
+            info = std::make_shared<ValidPathInfo>();
+            info->path = path;
+            info->deriver = readString(conn->from);
+            if (info->deriver != "") assertStorePath(info->deriver);
+            info->narHash = Hash(readString(conn->from), htSHA256);
+            info->references = readStorePaths<PathSet>(*this, conn->from);
+            conn->from >> info->registrationTime >> info->narSize;
+            if (GET_PROTOCOL_MINOR(conn->daemonVersion) >= 16) {
+                conn->from >> info->ultimate;
+                info->sigs = readStrings<StringSet>(conn->from);
+                conn->from >> info->ca;
+            }
         }
-        if (GET_PROTOCOL_MINOR(conn->daemonVersion) >= 17) {
-            bool valid; conn->from >> valid;
-            if (!valid) throw InvalidPath(format("path '%s' is not valid") % path);
-        }
-        auto info = std::make_shared<ValidPathInfo>();
-        info->path = path;
-        info->deriver = readString(conn->from);
-        if (info->deriver != "") assertStorePath(info->deriver);
-        info->narHash = Hash(readString(conn->from), htSHA256);
-        info->references = readStorePaths<PathSet>(*this, conn->from);
-        conn->from >> info->registrationTime >> info->narSize;
-        if (GET_PROTOCOL_MINOR(conn->daemonVersion) >= 16) {
-            conn->from >> info->ultimate;
-            info->sigs = readStrings<StringSet>(conn->from);
-            conn->from >> info->ca;
-        }
-        return info;
-    });
+        callback(std::move(info));
+    } catch (...) { callback.rethrow(); }
 }
 
 
@@ -411,8 +415,9 @@ void RemoteStore::addToStore(const ValidPathInfo & info, Source & source,
                  << info.references << info.registrationTime << info.narSize
                  << info.ultimate << info.sigs << info.ca
                  << repair << !checkSigs;
-        copyNAR(source, conn->to);
-        conn->processStderr();
+        bool tunnel = GET_PROTOCOL_MINOR(conn->daemonVersion) >= 21;
+        if (!tunnel) copyNAR(source, conn->to);
+        conn->processStderr(0, tunnel ? &source : nullptr);
     }
 }
 
@@ -435,8 +440,10 @@ Path RemoteStore::addToStore(const string & name, const Path & _srcPath,
         conn->to.written = 0;
         conn->to.warn = true;
         connections->incCapacity();
-        dumpPath(srcPath, conn->to, filter);
-        connections->decCapacity();
+        {
+            Finally cleanup([&]() { connections->decCapacity(); });
+            dumpPath(srcPath, conn->to, filter);
+        }
         conn->to.warn = false;
         conn->processStderr();
     } catch (SysError & e) {

@@ -17,6 +17,8 @@
 
 namespace nix {
 
+void NoSuchBinaryCacheFile::anchor() {}
+
 BinaryCacheStore::BinaryCacheStore(const Params & params)
     : Store(params)
 {
@@ -54,17 +56,38 @@ void BinaryCacheStore::init()
     }
 }
 
-std::shared_ptr<std::string> BinaryCacheStore::getFile(const std::string & path)
+void BinaryCacheStore::getFile(const std::string & path,
+    Callback<std::shared_ptr<std::string>> callback)
+{
+    try {
+        callback(getFile(path));
+    } catch (...) { callback.rethrow(); }
+}
+
+void BinaryCacheStore::getFile(const std::string & path, Sink & sink)
 {
     std::promise<std::shared_ptr<std::string>> promise;
     getFile(path,
-        [&](std::shared_ptr<std::string> result) {
-            promise.set_value(result);
-        },
-        [&](std::exception_ptr exc) {
-            promise.set_exception(exc);
-        });
-    return promise.get_future().get();
+        {[&](std::future<std::shared_ptr<std::string>> result) {
+            try {
+                promise.set_value(result.get());
+            } catch (...) {
+                promise.set_exception(std::current_exception());
+            }
+        }});
+    auto data = promise.get_future().get();
+    sink((unsigned char *) data->data(), data->size());
+}
+
+std::shared_ptr<std::string> BinaryCacheStore::getFile(const std::string & path)
+{
+    StringSink sink;
+    try {
+        getFile(path, sink);
+    } catch (NoSuchBinaryCacheFile &) {
+        return nullptr;
+    }
+    return sink.s;
 }
 
 Path BinaryCacheStore::narInfoFileFor(const Path & storePath)
@@ -196,30 +219,27 @@ void BinaryCacheStore::narFromPath(const Path & storePath, Sink & sink)
 {
     auto info = queryPathInfo(storePath).cast<const NarInfo>();
 
-    auto nar = getFile(info->url);
-
-    if (!nar) throw Error(format("file '%s' missing from binary cache") % info->url);
+    auto source = sinkToSource([this, url{info->url}](Sink & sink) {
+        getFile(url, sink);
+    });
 
     stats.narRead++;
-    stats.narReadCompressedBytes += nar->size();
+    //stats.narReadCompressedBytes += nar->size(); // FIXME
 
     uint64_t narSize = 0;
-
-    StringSource source(*nar);
 
     LambdaSink wrapperSink([&](const unsigned char * data, size_t len) {
         sink(data, len);
         narSize += len;
     });
 
-    decompress(info->compression, source, wrapperSink);
+    decompress(info->compression, *source, wrapperSink);
 
     stats.narReadBytes += narSize;
 }
 
 void BinaryCacheStore::queryPathInfoUncached(const Path & storePath,
-        std::function<void(std::shared_ptr<ValidPathInfo>)> success,
-        std::function<void(std::exception_ptr exc)> failure)
+    Callback<std::shared_ptr<ValidPathInfo>> callback)
 {
     auto uri = getUri();
     auto act = std::make_shared<Activity>(*logger, lvlTalkative, actQueryPathInfo,
@@ -229,17 +249,22 @@ void BinaryCacheStore::queryPathInfoUncached(const Path & storePath,
     auto narInfoFile = narInfoFileFor(storePath);
 
     getFile(narInfoFile,
-        [=](std::shared_ptr<std::string> data) {
-            if (!data) return success(0);
+        {[=](std::future<std::shared_ptr<std::string>> fut) {
+            try {
+                auto data = fut.get();
 
-            stats.narInfoRead++;
+                if (!data) return callback(nullptr);
 
-            callSuccess(success, failure, (std::shared_ptr<ValidPathInfo>)
-                std::make_shared<NarInfo>(*this, *data, narInfoFile));
+                stats.narInfoRead++;
 
-            (void) act; // force Activity into this lambda to ensure it stays alive
-        },
-        failure);
+                callback((std::shared_ptr<ValidPathInfo>)
+                    std::make_shared<NarInfo>(*this, *data, narInfoFile));
+
+                (void) act; // force Activity into this lambda to ensure it stays alive
+            } catch (...) {
+                callback.rethrow();
+            }
+        }});
 }
 
 Path BinaryCacheStore::addToStore(const string & name, const Path & srcPath,
