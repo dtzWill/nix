@@ -118,7 +118,10 @@ struct CurlDownloader : public Downloader
 
         ~DownloadItem()
         {
+            assert((req == nullptr) == !active);
             if (req) {
+                debug("DownloadItem destructor invoked on active request, attempting to cleanup (req=%p, multi=%p, done=%d)",
+                    req, downloader.curlm, done);
                 if (active)
                     curl_multi_remove_handle(downloader.curlm, req);
                 curl_easy_cleanup(req);
@@ -234,11 +237,10 @@ struct CurlDownloader : public Downloader
 
         long lowSpeedTimeout = 300;
 
-        void init()
+        void init(CURL *req)
         {
-            if (!req) req = curl_easy_init();
-
             curl_easy_reset(req);
+            this->req = req;
 
             if (verbosity >= lvlVomit) {
                 curl_easy_setopt(req, CURLOPT_VERBOSE, 1);
@@ -309,6 +311,9 @@ struct CurlDownloader : public Downloader
             curl_easy_getinfo(req, CURLINFO_EFFECTIVE_URL, &effectiveUrlCStr);
             if (effectiveUrlCStr)
                 result.effectiveUrl = effectiveUrlCStr;
+
+            // no longer manage 'req'
+            req = nullptr;
 
             debug("finished %s of '%s'; curl status = %d, HTTP status = %d, body = %d bytes",
                 request.verb(), request.uri, code, httpStatus, result.data ? result.data->size() : 0);
@@ -473,6 +478,49 @@ struct CurlDownloader : public Downloader
 
         std::map<CURL *, std::shared_ptr<DownloadItem>> items;
 
+        // recycle curl "easy" handles, as recommended by upstream
+
+        // This is beneficial as it avoids frequent malloc traffic
+        // and works *with* curl's connection cache instead
+        // of fighting against it as we currently do.
+        //
+        // Once associated with multi handle, libcurl may refer
+        // to the easy_handle from the multi handle's connection cache.
+        // This is needed as the backing for various state
+        // when using SSL and/or http2 (at least).
+        // We very much want this reuse but this means we should
+        // be careful to avoid free'ing handles that may be referenced
+        // by the connection cache of this multi handle.
+        //
+        // To avoid this use-after-free behavior we keep used handles
+        // and store them in a queue for future use:
+
+        std::queue<CURL *> old_handles;
+
+        // The handles are still created lazily, but we ensure
+        // we don't re-use old handles until other limits ensure
+        // curl won't still refer to them any longer.
+        //
+        // To hopefully accomplish this we avoid reusing handles
+        // until we've cycled through more handles than curl's cache size.
+        //
+        // The cache size is controlled by CURLMOPT_MAXCONNECTS[1]
+        // (not CURLMOPT_MAX_TOTAL_CONNECTIONS which we set to control active connections)
+        // and by default it's 4 times the number of easy handles.
+        //
+        // [1] https://curl.haxx.se/libcurl/c/CURLMOPT_MAXCONNECTS.html
+        const auto MAX_HANDLES = std::max<size_t>(downloadSettings.httpConnections.get() * 4, 100);
+
+        auto getHandle = [&]() {
+          if (old_handles.size() + items.size() < MAX_HANDLES)
+            return curl_easy_init();
+
+          // re-use oldest one
+          auto req = std::move(old_handles.front());
+          old_handles.pop();
+          return req;
+        };
+
         bool quit = false;
 
         std::chrono::steady_clock::time_point nextWakeup;
@@ -493,8 +541,11 @@ struct CurlDownloader : public Downloader
                 if (msg->msg == CURLMSG_DONE) {
                     auto i = items.find(msg->easy_handle);
                     assert(i != items.end());
+                    auto *req = i->second->req;
                     i->second->finish(msg->data.result);
-                    curl_multi_remove_handle(curlm, i->second->req);
+                    curl_multi_remove_handle(curlm, req);
+                    old_handles.push(req);
+
                     i->second->active = false;
                     items.erase(i);
                 }
@@ -550,7 +601,7 @@ struct CurlDownloader : public Downloader
 
             for (auto & item : incoming) {
                 debug("starting %s of %s", item->request.verb(), item->request.uri);
-                item->init();
+                item->init(getHandle());
                 curl_multi_add_handle(curlm, item->req);
                 item->active = true;
                 items[item->req] = item;
