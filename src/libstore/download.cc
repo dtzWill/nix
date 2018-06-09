@@ -30,7 +30,6 @@ using namespace std::string_literals;
 namespace nix {
 
 void DownloadError::anchor() {}
-void SubstituteGone::anchor() {}
 
 struct DownloadSettings : Config
 {
