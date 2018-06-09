@@ -38,16 +38,10 @@ public:
         const std::string & data,
         const std::string & mimeType) = 0;
 
-    /* Note: subclasses must implement at least one of the two
-       following getFile() methods. */
-
-    /* Dump the contents of the specified file to a sink. */
-    virtual void getFile(const std::string & path, Sink & sink);
-
-    /* Fetch the specified file and call the specified callback with
-       the result. A subclass may implement this asynchronously. */
+    /* Return the contents of the specified file, or null if it
+       doesn't exist. */
     virtual void getFile(const std::string & path,
-        Callback<std::shared_ptr<std::string>> callback);
+        Callback<std::shared_ptr<std::string>> callback) = 0;
 
     std::shared_ptr<std::string> getFile(const std::string & path);
 
@@ -134,7 +128,5 @@ public:
     int getPriority() override { return priority; }
 
 };
-
-MakeError(NoSuchBinaryCacheFile, Error);
 
 }
