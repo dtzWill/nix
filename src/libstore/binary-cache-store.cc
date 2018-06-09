@@ -220,11 +220,7 @@ void BinaryCacheStore::narFromPath(const Path & storePath, Sink & sink)
     auto info = queryPathInfo(storePath).cast<const NarInfo>();
 
     auto source = sinkToSource([this, url{info->url}](Sink & sink) {
-        try {
-            getFile(url, sink);
-        } catch (NoSuchBinaryCacheFile & e) {
-            throw SubstituteGone(e.what());
-        }
+        getFile(url, sink);
     });
 
     stats.narRead++;
