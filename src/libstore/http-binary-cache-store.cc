@@ -80,23 +80,27 @@ protected:
     }
 
     void getFile(const std::string & path,
-        Callback<std::shared_ptr<std::string>> callback) override
+        std::function<void(std::shared_ptr<std::string>)> success,
+        std::function<void(std::exception_ptr exc)> failure) override
     {
         DownloadRequest request(cacheUri + "/" + path);
         request.tries = 8;
 
         getDownloader()->enqueueDownload(request,
-            {[callback](std::future<DownloadResult> result) {
+            [success](const DownloadResult & result) {
+                success(result.data);
+            },
+            [success, failure](std::exception_ptr exc) {
                 try {
-                    callback(result.get().data);
+                    std::rethrow_exception(exc);
                 } catch (DownloadError & e) {
                     if (e.error == Downloader::NotFound || e.error == Downloader::Forbidden)
-                        return callback(std::shared_ptr<std::string>());
-                    callback.rethrow();
+                        return success(0);
+                    failure(exc);
                 } catch (...) {
-                    callback.rethrow();
+                    failure(exc);
                 }
-            }});
+            });
     }
 
 };

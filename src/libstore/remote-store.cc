@@ -294,9 +294,10 @@ void RemoteStore::querySubstitutablePathInfos(const PathSet & paths,
 
 
 void RemoteStore::queryPathInfoUncached(const Path & path,
-    Callback<std::shared_ptr<ValidPathInfo>> callback)
+    std::function<void(std::shared_ptr<ValidPathInfo>)> success,
+    std::function<void(std::exception_ptr exc)> failure)
 {
-    try {
+    sync2async<std::shared_ptr<ValidPathInfo>>(success, failure, [&]() {
         auto conn(connections->get());
         conn->to << wopQueryPathInfo << path;
         try {
@@ -323,8 +324,8 @@ void RemoteStore::queryPathInfoUncached(const Path & path,
             info->sigs = readStrings<StringSet>(conn->from);
             conn->from >> info->ca;
         }
-        callback(std::move(info));
-    } catch (...) { callback.rethrow(); }
+        return info;
+    });
 }
 
 
