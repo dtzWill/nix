@@ -299,7 +299,7 @@ struct S3BinaryCacheStoreImpl : public S3BinaryCacheStore
                     &transferHandle)
             {
               checkInterrupt();
-              debug("upload progress ('%s'): '%d' of '%d' bytes",
+              printTalkative("upload progress ('%s'): '%d' of '%d' bytes",
                              path,
                              transferHandle->GetBytesTransferred(),
                              transferHandle->GetBytesTotalSize());
