@@ -17,7 +17,7 @@
 
 namespace nix {
 
-void NoSuchBinaryCacheFile::anchor() {}
+// void NoSuchBinaryCacheFile::anchor() {}
 
 BinaryCacheStore::BinaryCacheStore(const Params & params)
     : Store(params)
