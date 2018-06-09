@@ -87,7 +87,6 @@ struct CurlDownloader : public Downloader
         bool done = false; // whether either the success or failure function has been called
         Callback<DownloadResult> callback;
         CURL * req = 0;
-        bool active = false; // whether the handle has been added to the multi object
         std::string status;
 
         unsigned int attempt = 0;
@@ -118,12 +117,10 @@ struct CurlDownloader : public Downloader
 
         ~DownloadItem()
         {
-            assert((req == nullptr) == !active);
             if (req) {
                 debug("DownloadItem destructor invoked on active request, attempting to cleanup (req=%p, multi=%p, done=%d)",
                     req, downloader.curlm, done);
-                if (active)
-                    curl_multi_remove_handle(downloader.curlm, req);
+                curl_multi_remove_handle(downloader.curlm, req);
                 curl_easy_cleanup(req);
             }
             if (requestHeaders) curl_slist_free_all(requestHeaders);
@@ -545,8 +542,6 @@ struct CurlDownloader : public Downloader
                     i->second->finish(msg->data.result);
                     curl_multi_remove_handle(curlm, req);
                     old_handles.push(req);
-
-                    i->second->active = false;
                     items.erase(i);
                 }
             }
@@ -603,7 +598,6 @@ struct CurlDownloader : public Downloader
                 debug("starting %s of %s", item->request.verb(), item->request.uri);
                 item->init(getHandle());
                 curl_multi_add_handle(curlm, item->req);
-                item->active = true;
                 items[item->req] = item;
             }
         }
