@@ -63,6 +63,11 @@
 
 #include <nlohmann/json.hpp>
 
+#ifdef __GLIBC__
+#include <gnu/lib-names.h>
+#include <dlfcn.h>
+#endif
+
 
 namespace nix {
 
@@ -1777,17 +1782,17 @@ PathSet DerivationGoal::exportReferences(PathSet storePaths)
 static std::once_flag dns_resolve_flag;
 
 static void preloadNSS() {
+#ifdef __GLIBC__
     /* builtin:fetchurl can trigger a DNS lookup, which with glibc can trigger a dynamic library load of
        one of the glibc NSS libraries in a sandboxed child, which will fail unless the library's already
        been loaded in the parent. So we force a lookup of an invalid domain to force the NSS machinery to
        load its lookup libraries in the parent before any child gets a chance to. */
     std::call_once(dns_resolve_flag, []() {
-        struct addrinfo *res = NULL;
-
-        if (getaddrinfo("this.pre-initializes.the.dns.resolvers.invalid.", "http", NULL, &res) != 0) {
-            if (res) freeaddrinfo(res);
-        }
+        if (dlopen(LIBNSS_DNS_SO, RTLD_LAZY) == NULL)
+          throw SysError(format("unable to preload libnss-dns shared library: %1%") % dlerror());
+        // leak the handle
     });
+#endif
 }
 
 void DerivationGoal::startBuilder()
