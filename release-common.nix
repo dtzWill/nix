@@ -48,7 +48,21 @@ rec {
     ];
 
   buildDeps =
-    [ curl
+  [ (curl.overrideAttrs (o:{
+    src = fetchFromGitHub {
+      owner = "curl";
+      repo = "curl";
+      # recent 'master' with fixes causing crashes with our usage
+      # See commit log for relevant issues.
+      rev = "7bc118043749d3a533e16b45269446a1edbd09d8";
+      sha256 = "1m5zri8fa9nyk1jjzkvpwxgi01vmnb9qmfbbs3chy7nm9slx6vha";
+    };
+    name = "curl-2018-07-20";
+
+    nativeBuildInputs = (o.nativeBuildInputs or []) ++ [ autoreconfHook ];
+
+    preConfigure = ":"; # override normal 'preConfigure', not needed when building from git
+  }))
       bzip2 xz brotli
       openssl pkgconfig sqlite boehmgc
       boost
