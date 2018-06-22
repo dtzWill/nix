@@ -7,7 +7,6 @@
 #include "globals.hh"
 #include "derivations.hh"
 #include "pool.hh"
-#include "finally.hh"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -437,10 +436,8 @@ Path RemoteStore::addToStore(const string & name, const Path & _srcPath,
         conn->to.written = 0;
         conn->to.warn = true;
         connections->incCapacity();
-        {
-            Finally cleanup([&]() { connections->decCapacity(); });
-            dumpPath(srcPath, conn->to, filter);
-        }
+        dumpPath(srcPath, conn->to, filter);
+        connections->decCapacity();
         conn->to.warn = false;
         conn->processStderr();
     } catch (SysError & e) {
