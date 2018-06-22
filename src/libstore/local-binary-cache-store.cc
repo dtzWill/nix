@@ -34,14 +34,15 @@ protected:
         const std::string & data,
         const std::string & mimeType) override;
 
-    void getFile(const std::string & path, Sink & sink) override
+    void getFile(const std::string & path,
+        Callback<std::shared_ptr<std::string>> callback) override
     {
         try {
-            readFile(binaryCacheDir + "/" + path, sink);
+            // FIXME: O(n) space
+            callback(std::make_shared<std::string>(readFile(binaryCacheDir + "/" + path)));
         } catch (SysError & e) {
-            if (e.errNo == ENOENT)
-                throw NoSuchBinaryCacheFile("file '%s' does not exist in binary cache", path);
-        }
+            if (e.errNo == ENOENT) callback(nullptr); else callback.rethrow();
+        } catch (...) { callback.rethrow(); }
     }
 
     PathSet queryAllValidPaths() override
