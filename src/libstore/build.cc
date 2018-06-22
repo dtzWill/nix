@@ -735,7 +735,7 @@ private:
 
     /* Whether to retry substituting the outputs after building the
        inputs. */
-    bool retrySubstitution;
+    bool retrySubstitution = false;
 
     /* The derivation stored at drvPath. */
     std::unique_ptr<BasicDerivation> drv;
@@ -1125,8 +1125,6 @@ void DerivationGoal::haveDerivation()
 {
     trace("have derivation");
 
-    retrySubstitution = false;
-
     for (auto & i : drv->outputs)
         worker.store.addTempRoot(i.second.path);
 
@@ -1165,7 +1163,7 @@ void DerivationGoal::outputsSubstituted()
     /*  If the substitutes form an incomplete closure, then we should
         build the dependencies of this derivation, but after that, we
         can still use the substitutes for this derivation itself. */
-    if (nrIncompleteClosure > 0) retrySubstitution = true;
+    if (nrIncompleteClosure > 0 && !retrySubstitution) retrySubstitution = true;
 
     nrFailed = nrNoSubstituters = nrIncompleteClosure = 0;
 
@@ -3530,8 +3528,8 @@ private:
     /* The current substituter. */
     std::shared_ptr<Store> sub;
 
-    /* Whether a substituter failed. */
-    bool substituterFailed = false;
+    /* Whether any substituter can realise this path. */
+    bool hasSubstitute;
 
     /* Path info returned by the substituter's query info operation. */
     std::shared_ptr<const ValidPathInfo> info;
@@ -3595,6 +3593,7 @@ public:
 
 SubstitutionGoal::SubstitutionGoal(const Path & storePath, Worker & worker, RepairFlag repair)
     : Goal(worker)
+    , hasSubstitute(false)
     , repair(repair)
 {
     this->storePath = storePath;
@@ -3658,9 +3657,9 @@ void SubstitutionGoal::tryNext()
         /* Hack: don't indicate failure if there were no substituters.
            In that case the calling derivation should just do a
            build. */
-        amDone(substituterFailed ? ecFailed : ecNoSubstituters);
+        amDone(hasSubstitute ? ecFailed : ecNoSubstituters);
 
-        if (substituterFailed) {
+        if (hasSubstitute) {
             worker.failedSubstitutions++;
             worker.updateProgress();
         }
@@ -3695,6 +3694,8 @@ void SubstitutionGoal::tryNext()
         : nullptr;
 
     worker.updateProgress();
+
+    hasSubstitute = true;
 
     /* Bail out early if this substituter lacks a valid
        signature. LocalStore::addToStore() also checks for this, but
@@ -3810,19 +3811,8 @@ void SubstitutionGoal::finished()
         state = &SubstitutionGoal::init;
         worker.waitForAWhile(shared_from_this());
         return;
-    } catch (std::exception & e) {
-        printError(e.what());
-
-        /* Cause the parent build to fail unless --fallback is given,
-           or the substitute has disappeared. The latter case behaves
-           the same as the substitute never having existed in the
-           first place. */
-        try {
-            throw;
-        } catch (SubstituteGone &) {
-        } catch (...) {
-            substituterFailed = true;
-        }
+    } catch (Error & e) {
+        printError(e.msg());
 
         /* Try the next substitute. */
         state = &SubstitutionGoal::tryNext;
