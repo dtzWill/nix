@@ -47,7 +47,8 @@ struct Downloader
        the download. The future may throw a DownloadError
        exception. */
     virtual void enqueueDownload(const DownloadRequest & request,
-        Callback<DownloadResult> callback) = 0;
+        std::function<void(const DownloadResult &)> success,
+        std::function<void(std::exception_ptr exc)> failure) = 0;
 
     std::future<DownloadResult> enqueueDownload(const DownloadRequest & request);
 

@@ -365,9 +365,10 @@ struct S3BinaryCacheStoreImpl : public S3BinaryCacheStore
     }
 
     void getFile(const std::string & path,
-        Callback<std::shared_ptr<std::string>> callback) override
+        std::function<void(std::shared_ptr<std::string>)> success,
+        std::function<void(std::exception_ptr exc)> failure) override
     {
-        try {
+        sync2async<std::shared_ptr<std::string>>(success, failure, [&]() {
             stats.get++;
 
             auto res = s3Helper.getObject(bucketName, path);
@@ -379,8 +380,8 @@ struct S3BinaryCacheStoreImpl : public S3BinaryCacheStore
                 printTalkative("downloaded 's3://%s/%s' (%d bytes) in %d ms",
                     bucketName, path, res.data->size(), res.durationMs);
 
-            callback(std::move(res.data));
-        } catch (...) { callback.rethrow(); }
+            return res.data;
+        });
     }
 
     PathSet queryAllValidPaths() override

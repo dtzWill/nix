@@ -305,20 +305,20 @@ ref<const ValidPathInfo> Store::queryPathInfo(const Path & storePath)
     std::promise<ref<ValidPathInfo>> promise;
 
     queryPathInfo(storePath,
-        {[&](std::future<ref<ValidPathInfo>> result) {
-            try {
-                promise.set_value(result.get());
-            } catch (...) {
-                promise.set_exception(std::current_exception());
-            }
-        }});
+        [&](ref<ValidPathInfo> info) {
+            promise.set_value(info);
+        },
+        [&](std::exception_ptr exc) {
+            promise.set_exception(exc);
+        });
 
     return promise.get_future().get();
 }
 
 
 void Store::queryPathInfo(const Path & storePath,
-    Callback<ref<ValidPathInfo>> callback)
+    std::function<void(ref<ValidPathInfo>)> success,
+    std::function<void(std::exception_ptr exc)> failure)
 {
     auto hashPart = storePathToHash(storePath);
 
@@ -330,7 +330,7 @@ void Store::queryPathInfo(const Path & storePath,
                 stats.narInfoReadAverted++;
                 if (!*res)
                     throw InvalidPath(format("path '%s' is not valid") % storePath);
-                return callback(ref<ValidPathInfo>(*res));
+                return success(ref<ValidPathInfo>(*res));
             }
         }
 
@@ -346,36 +346,35 @@ void Store::queryPathInfo(const Path & storePath,
                         (res.second->path != storePath && storePathToName(storePath) != ""))
                         throw InvalidPath(format("path '%s' is not valid") % storePath);
                 }
-                return callback(ref<ValidPathInfo>(res.second));
+                return success(ref<ValidPathInfo>(res.second));
             }
         }
 
-    } catch (...) { return callback.rethrow(); }
+    } catch (std::exception & e) {
+        return callFailure(failure);
+    }
 
     queryPathInfoUncached(storePath,
-        {[this, storePath, hashPart, callback](std::future<std::shared_ptr<ValidPathInfo>> fut) {
+        [this, storePath, hashPart, success, failure](std::shared_ptr<ValidPathInfo> info) {
 
-            try {
-                auto info = fut.get();
+            if (diskCache)
+                diskCache->upsertNarInfo(getUri(), hashPart, info);
 
-                if (diskCache)
-                    diskCache->upsertNarInfo(getUri(), hashPart, info);
+            {
+                auto state_(state.lock());
+                state_->pathInfoCache.upsert(hashPart, info);
+            }
 
-                {
-                    auto state_(state.lock());
-                    state_->pathInfoCache.upsert(hashPart, info);
-                }
+            if (!info
+                || (info->path != storePath && storePathToName(storePath) != ""))
+            {
+                stats.narInfoMissing++;
+                return failure(std::make_exception_ptr(InvalidPath(format("path '%s' is not valid") % storePath)));
+            }
 
-                if (!info
-                    || (info->path != storePath && storePathToName(storePath) != ""))
-                {
-                    stats.narInfoMissing++;
-                    throw InvalidPath("path '%s' is not valid", storePath);
-                }
+            callSuccess(success, failure, ref<ValidPathInfo>(info));
 
-                callback(ref<ValidPathInfo>(info));
-            } catch (...) { callback.rethrow(); }
-        }});
+        }, failure);
 }
 
 
@@ -395,19 +394,26 @@ PathSet Store::queryValidPaths(const PathSet & paths, SubstituteFlag maybeSubsti
 
     auto doQuery = [&](const Path & path ) {
         checkInterrupt();
-        queryPathInfo(path, {[path, &state_, &wakeup](std::future<ref<ValidPathInfo>> fut) {
-            auto state(state_.lock());
-            try {
-                auto info = fut.get();
+        queryPathInfo(path,
+            [path, &state_, &wakeup](ref<ValidPathInfo> info) {
+                auto state(state_.lock());
                 state->valid.insert(path);
-            } catch (InvalidPath &) {
-            } catch (...) {
-                state->exc = std::current_exception();
-            }
-            assert(state->left);
-            if (!--state->left)
-                wakeup.notify_one();
-        }});
+                assert(state->left);
+                if (!--state->left)
+                    wakeup.notify_one();
+            },
+            [path, &state_, &wakeup](std::exception_ptr exc) {
+                auto state(state_.lock());
+                try {
+                    std::rethrow_exception(exc);
+                } catch (InvalidPath &) {
+                } catch (...) {
+                    state->exc = exc;
+                }
+                assert(state->left);
+                if (!--state->left)
+                    wakeup.notify_one();
+            });
     };
 
     for (auto & path : paths)

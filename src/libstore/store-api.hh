@@ -355,12 +355,14 @@ public:
 
     /* Asynchronous version of queryPathInfo(). */
     void queryPathInfo(const Path & path,
-        Callback<ref<ValidPathInfo>> callback);
+        std::function<void(ref<ValidPathInfo>)> success,
+        std::function<void(std::exception_ptr exc)> failure);
 
 protected:
 
     virtual void queryPathInfoUncached(const Path & path,
-        Callback<std::shared_ptr<ValidPathInfo>> callback) = 0;
+        std::function<void(std::shared_ptr<ValidPathInfo>)> success,
+        std::function<void(std::exception_ptr exc)> failure) = 0;
 
 public:
 

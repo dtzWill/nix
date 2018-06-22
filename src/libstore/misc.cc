@@ -33,11 +33,9 @@ void Store::computeFSClosure(const PathSet & startPaths,
             state->pending++;
         }
 
-        queryPathInfo(path, {[&, path](std::future<ref<ValidPathInfo>> fut) {
-            // FIXME: calls to isValidPath() should be async
-
-            try {
-                auto info = fut.get();
+        queryPathInfo(path,
+            [&, path](ref<ValidPathInfo> info) {
+                // FIXME: calls to isValidPath() should be async
 
                 if (flipDirection) {
 
@@ -77,13 +75,14 @@ void Store::computeFSClosure(const PathSet & startPaths,
                     if (!--state->pending) done.notify_one();
                 }
 
-            } catch (...) {
+            },
+
+            [&, path](std::exception_ptr exc) {
                 auto state(state_.lock());
-                if (!state->exc) state->exc = std::current_exception();
+                if (!state->exc) state->exc = exc;
                 assert(state->pending);
                 if (!--state->pending) done.notify_one();
-            };
-        }});
+            });
     };
 
     for (auto & startPath : startPaths)
