@@ -298,7 +298,7 @@ public:
 
     void draw(State & state)
     {
-        if (!state.active) return;
+        if (!state.active || !state.sessionActive) return;
 
         std::string line;
 
