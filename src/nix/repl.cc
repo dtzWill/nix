@@ -152,8 +152,8 @@ void NixRepl::mainLoop(const std::vector<std::string> & files)
 
     std::string input;
 
+    stopProgressBar();
     while (true) {
-        stopProgressBar();
         // When continuing input from previous lines, don't print a prompt, just align to the same
         // number of chars as the prompt.
         if (!getLine(input, input.empty() ? "nix-repl> " : "          "))
@@ -175,6 +175,7 @@ void NixRepl::mainLoop(const std::vector<std::string> & files)
         } catch (Interrupted & e) {
             printMsg(lvlError, format(error + "%1%%2%") % (settings.showTrace ? e.prefix() : "") % e.msg());
         }
+        stopProgressBar();
 
         // We handled the current input fully, so we should clear it
         // and read brand new input.
