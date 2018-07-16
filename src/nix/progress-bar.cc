@@ -60,6 +60,7 @@ private:
         uint64_t corruptedPaths = 0, untrustedPaths = 0;
 
         bool active = true;
+        bool quit = false;
     };
 
     Sync<State> state_;
@@ -74,9 +75,9 @@ public:
     {
         updateThread = std::thread([&]() {
             auto state(state_.lock());
-            while (state->active) {
+            while (!state->quit) {
                 auto r = state.wait_for(updateCV, std::chrono::seconds(1));
-                draw(*state);
+                if (state->active) draw(*state);
                 if (r == std::cv_status::no_timeout)
                   state.wait_for(quitCV, std::chrono::milliseconds(50));
             }
@@ -85,13 +86,25 @@ public:
 
     ~ProgressBar()
     {
-        stop();
+        stop(true);
         updateThread.join();
     }
 
-    void stop()
+    void start()
     {
         auto state(state_.lock());
+        state->active = true;
+        updateCV.notify_one();
+        quitCV.notify_one();
+    }
+
+    void stop(bool quit = false)
+    {
+        auto state(state_.lock());
+        if (quit) {
+          state->quit = true;
+          quitCV.notify_one();
+        }
         if (!state->active) return;
         state->active = false;
         std::string status = getStatus(*state);
@@ -99,7 +112,6 @@ public:
         if (status != "")
             writeToStderr("[" + status + "]\n");
         updateCV.notify_one();
-        quitCV.notify_one();
     }
 
     void log(Verbosity lvl, const FormatOrString & fs) override
