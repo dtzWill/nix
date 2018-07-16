@@ -14,6 +14,7 @@
 #include "globals.hh"
 #include "command.hh"
 #include "finally.hh"
+#include "progress-bar.hh"
 
 #include "src/linenoise/linenoise.h"
 
@@ -152,10 +153,12 @@ void NixRepl::mainLoop(const std::vector<std::string> & files)
     std::string input;
 
     while (true) {
+        stopProgressBar();
         // When continuing input from previous lines, don't print a prompt, just align to the same
         // number of chars as the prompt.
         if (!getLine(input, input.empty() ? "nix-repl> " : "          "))
             break;
+        startProgressBar();
 
         try {
             if (!removeWhitespace(input).empty() && !processLine(input)) return;

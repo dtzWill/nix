@@ -410,14 +410,16 @@ public:
 
 void startProgressBar()
 {
-    logger = new ProgressBar();
+    if (auto progressBar = dynamic_cast<ProgressBar *>(logger))
+        progressBar->start();
+    else
+        logger = new ProgressBar();
 }
 
 void stopProgressBar()
 {
-    auto progressBar = dynamic_cast<ProgressBar *>(logger);
-    if (progressBar) progressBar->stop();
-
+    if (auto progressBar = dynamic_cast<ProgressBar *>(logger))
+        progressBar->stop();
 }
 
 }
