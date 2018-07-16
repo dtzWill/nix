@@ -60,6 +60,7 @@ private:
         uint64_t corruptedPaths = 0, untrustedPaths = 0;
 
         bool active = true;
+        bool sessionActive = false;
         bool quit = false;
     };
 
@@ -93,23 +94,26 @@ public:
     void start()
     {
         auto state(state_.lock());
+        state->sessionActive = false;
         state->active = true;
-        //updateCV.notify_one();
+        updateCV.notify_one();
     }
 
     void stop(bool quit = false)
     {
         auto state(state_.lock());
         if (quit) {
-          state->quit = true;
-          quitCV.notify_one();
+            state->quit = true;
+            quitCV.notify_one();
         }
         if (!state->active) return;
         state->active = false;
-        std::string status = getStatus(*state);
-        writeToStderr("\r\e[K");
-        if (status != "")
-            writeToStderr("[" + status + "]\n");
+        if (state->sessionActive) {
+            std::string status = getStatus(*state);
+            writeToStderr("\r\e[K");
+            if (status != "")
+                writeToStderr("[" + status + "]\n");
+        }
         updateCV.notify_one();
     }
 
@@ -175,6 +179,7 @@ public:
             || (type == actCopyPath && hasAncestor(*state, actSubstitute, parent)))
             i->visible = false;
 
+        state->sessionActive = true;
         update();
     }
 
@@ -210,6 +215,7 @@ public:
             state->its.erase(i);
         }
 
+        state->sessionActive = true;
         update();
     }
 
@@ -220,6 +226,7 @@ public:
         if (type == resFileLinked) {
             state->filesLinked++;
             state->bytesLinked += getI(fields, 0);
+            state->sessionActive = true;
             update();
         }
 
@@ -233,17 +240,20 @@ public:
                 info.lastLine = lastLine;
                 state->activities.emplace_back(info);
                 i->second = std::prev(state->activities.end());
+                state->sessionActive = true;
                 update();
             }
         }
 
         else if (type == resUntrustedPath) {
             state->untrustedPaths++;
+            state->sessionActive = true;
             update();
         }
 
         else if (type == resCorruptedPath) {
             state->corruptedPaths++;
+            state->sessionActive = true;
             update();
         }
 
@@ -251,6 +261,7 @@ public:
             auto i = state->its.find(act);
             assert(i != state->its.end());
             i->second->phase = getS(fields, 0);
+            state->sessionActive = true;
             update();
         }
 
@@ -262,6 +273,7 @@ public:
             actInfo.expected = getI(fields, 1);
             actInfo.running = getI(fields, 2);
             actInfo.failed = getI(fields, 3);
+            state->sessionActive = true;
             update();
         }
 
@@ -274,6 +286,7 @@ public:
             state->activitiesByType[type].expected -= j;
             j = getI(fields, 1);
             state->activitiesByType[type].expected += j;
+            state->sessionActive = true;
             update();
         }
     }
