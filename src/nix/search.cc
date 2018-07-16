@@ -184,14 +184,13 @@ struct CmdSearch : SourceExprCommand, MixJSON
                             jsonElem.attr("description", description);
 
                         } else {
-                            if (description.empty()) {
-                                description = "\e[3mNo description\e[23m";
-                            }
+                            auto display_description =
+                                description.empty() ? "\e[3mNo description\e[23m" : description;
                             results[attrPath] = fmt(
                                 "* %s (%s)\n  %s\n",
                                 wrap("\e[0;1m", hilite(attrPath, attrPathMatch, "\e[0;1m")),
                                 wrap("\e[0;2m", hilite(parsed.fullName, nameMatch, "\e[0;2m")),
-                                hilite(description, descriptionMatch, ANSI_NORMAL));
+                                hilite(display_description, descriptionMatch, ANSI_NORMAL));
                         }
                     }
 
