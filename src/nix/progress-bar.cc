@@ -94,7 +94,7 @@ public:
     {
         auto state(state_.lock());
         state->active = true;
-        updateCV.notify_one();
+        //updateCV.notify_one();
     }
 
     void stop(bool quit = false)
