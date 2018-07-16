@@ -77,7 +77,7 @@ public:
             auto state(state_.lock());
             while (!state->quit) {
                 auto r = state.wait_for(updateCV, std::chrono::seconds(1));
-                if (state->active) draw(*state);
+                draw(*state);
                 if (r == std::cv_status::no_timeout)
                   state.wait_for(quitCV, std::chrono::milliseconds(50));
             }
@@ -95,7 +95,6 @@ public:
         auto state(state_.lock());
         state->active = true;
         updateCV.notify_one();
-        quitCV.notify_one();
     }
 
     void stop(bool quit = false)

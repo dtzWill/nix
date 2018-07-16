@@ -332,6 +332,7 @@ bool NixRepl::processLine(string line)
     }
 
     if (command == ":?" || command == ":help") {
+        stopProgressBar();
         std::cout
              << "The following commands are available:\n"
              << "\n"
@@ -486,6 +487,7 @@ void NixRepl::addAttrsToScope(Value & attrs)
     state.forceAttrs(attrs);
     for (auto & i : *attrs.attrs)
         addVarToScope(i.name, *i.value);
+    stopProgressBar();
     std::cout << format("Added %1% variables.") % attrs.attrs->size() << std::endl;
 }
 
@@ -517,6 +519,7 @@ void NixRepl::evalString(string s, Value & v)
 
 std::ostream & NixRepl::printValue(std::ostream & str, Value & v, unsigned int maxDepth)
 {
+    stopProgressBar();
     ValuesSeen seen;
     return printValue(str, v, maxDepth, seen);
 }
