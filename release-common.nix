@@ -64,7 +64,7 @@ rec {
     preConfigure = ":"; # override normal 'preConfigure', not needed when building from git
   }))
       bzip2 xz brotli
-      openssl pkgconfig sqlite boehmgc
+      openssl pkgconfig sqlite (boehmgc.override { enableLargeConfig = true; })
       boost
 
       # Tests
