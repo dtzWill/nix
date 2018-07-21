@@ -54,8 +54,8 @@ rec {
       repo = "curl";
       # recent 'master' with fixes causing crashes with our usage
       # See commit log for relevant issues.
-      rev = "7bc118043749d3a533e16b45269446a1edbd09d8";
-      sha256 = "1m5zri8fa9nyk1jjzkvpwxgi01vmnb9qmfbbs3chy7nm9slx6vha";
+      rev = "7b9bc96c7716f34dbd1f525aefb77d74b8b0f528";
+      sha256 = "1iy2v752qp2n0grnb91g9h2zg0snvr9wmmlp6xkyyj5riih2899d";
     };
     name = "curl-2018-07-20";
 
