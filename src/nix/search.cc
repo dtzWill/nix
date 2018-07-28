@@ -237,7 +237,7 @@ struct CmdSearch : SourceExprCommand, MixJSON
             } catch (Error & e) {
                 if (!toplevel) {
                     e.addPrefix(fmt("While evaluating the attribute '%s':\n", attrPath));
-                    printError("warning: %s", e.what());
+                    debug("warning: %s", e.what());
                     // don't throw, try other attrs
                 }
             }
