@@ -237,7 +237,8 @@ struct CmdSearch : SourceExprCommand, MixJSON
             } catch (Error & e) {
                 if (!toplevel) {
                     e.addPrefix(fmt("While evaluating the attribute '%s':\n", attrPath));
-                    throw;
+                    printError("warning: %s", e.what());
+                    // don't throw, try other attrs
                 }
             }
         };
@@ -278,6 +279,7 @@ struct CmdSearch : SourceExprCommand, MixJSON
                    https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66145 */
                 if (!jsonCacheFile)
                     throw Error("error writing to %s", tmpFile);
+                throw;
             }
 
             if (writeCache && rename(tmpFile.c_str(), jsonCacheFileName.c_str()) == -1)
