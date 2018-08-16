@@ -77,11 +77,20 @@ rec {
       ((aws-sdk-cpp.override {
         apis = ["s3" "transfer"];
         customMemoryManagement = false;
-      }).overrideDerivation (args: {
-        patches = args.patches or [] ++ [ (fetchpatch {
-          url = https://github.com/edolstra/aws-sdk-cpp/commit/3e07e1f1aae41b4c8b340735ff9e8c735f0c063f.patch;
-          sha256 = "1pij0v449p166f9l29x7ppzk8j7g9k9mp15ilh5qxp29c7fnvxy2";
-        }) ];
+      }).overrideDerivation (args: rec {
+        name = "aws-sdk-cpp-${version}";
+        version = "1.5.15";
+        src = fetchFromGitHub {
+          owner = "aws";
+          repo = "aws-sdk-cpp";
+          rev = "${version}";
+          sha256 = "0a7k2cclmhkhlq5l7lwvq84lczxdjjbr4dayj4ffn02w2ds0dxmh";
+        };
+        patches = args.patches or [] ++ [ ./transfermanager-content-encoding.patch ];
+        #patches = args.patches or [] ++ [ (fetchpatch {
+        #  url = https://github.com/edolstra/aws-sdk-cpp/commit/3e07e1f1aae41b4c8b340735ff9e8c735f0c063f.patch;
+        #  sha256 = "1pij0v449p166f9l29x7ppzk8j7g9k9mp15ilh5qxp29c7fnvxy2";
+        #}) ];
       }));
 
   perlDeps =
