@@ -53,8 +53,6 @@ static DownloadSettings downloadSettings;
 
 static GlobalConfig::Register r1(&downloadSettings);
 
-void DownloadError::anchor() {}
-
 std::string resolveUri(const std::string & uri)
 {
     if (uri.compare(0, 8, "channel:") == 0)
