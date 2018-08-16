@@ -55,7 +55,7 @@ rec {
       # recent 'master' with fixes causing crashes with our usage
       # See commit log for relevant issues.
       rev = "099f37e9c5779a5701735b40e7e4b09ce33a4786";
-      sha256 = "1cc368ffs2g07nzn8m86id8lsgs8jb232v86xn2f3520dlsb7g3f";
+      sha256 = "1fgrp6p53rpf39r2y0bvjb459ab3jl2hmq447f35jvl0q30rbmgy";
     };
     name = "curl-2018-08-15";
 
