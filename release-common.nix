@@ -54,10 +54,10 @@ rec {
       repo = "curl";
       # recent 'master' with fixes causing crashes with our usage
       # See commit log for relevant issues.
-      rev = "099f37e9c5779a5701735b40e7e4b09ce33a4786";
-      sha256 = "1fgrp6p53rpf39r2y0bvjb459ab3jl2hmq447f35jvl0q30rbmgy";
+      rev = "9dad3bd6652224aa9a1ce1994a082b000243e09c";
+      sha256 = "1wldclxjkl09znj0403ns3d7lx1z63rxr307mkmy7fs88idnnhrq";
     };
-    name = "curl-2018-08-15";
+    name = "curl-2018-08-20";
 
     nativeBuildInputs = (o.nativeBuildInputs or []) ++ [ autoreconfHook ];
 
