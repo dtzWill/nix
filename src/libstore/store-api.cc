@@ -12,6 +12,7 @@
 
 namespace nix {
 
+void SubstituterDisabled::anchor() {}
 void SubstError::anchor() {}
 void BuildError::anchor() {}
 void InvalidPath::anchor() {}
