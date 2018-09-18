@@ -77,12 +77,12 @@ rec {
         customMemoryManagement = false;
       }).overrideDerivation (args: rec {
         name = "aws-sdk-cpp-${version}";
-        version = "1.5.15";
+        version = "1.6.12";
         src = fetchFromGitHub {
           owner = "aws";
           repo = "aws-sdk-cpp";
           rev = "${version}";
-          sha256 = "0a7k2cclmhkhlq5l7lwvq84lczxdjjbr4dayj4ffn02w2ds0dxmh";
+          sha256 = "1fa3gp8n3mz7wir320n6a31512kc0mynvbsg87qdmk92dnyzgra4";
         };
         patches = args.patches or [] ++ [ ./transfermanager-content-encoding.patch ];
         #patches = args.patches or [] ++ [ (fetchpatch {
