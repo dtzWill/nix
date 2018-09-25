@@ -52,10 +52,10 @@ rec {
     src = fetchFromGitHub {
       owner = "curl";
       repo = "curl";
-      rev = "d0c615b81b28e21e312f8a264e8c513757136c41";
-      sha256 = "16iwfbb7rby68rc0y4z2cifnxcph7w9kd4hakv93h5k6asc4mffq";
+      rev = "16fefeee1e4d6d8534f97f8c133b2e509cca4d9e";
+      sha256 = "14gq9jz0ls3i02sxya8b09crjr0nyc7ckqq2a08mbiy2radqcd75";
     };
-    name = "curl-2018-09-18";
+    name = "curl-2018-09-24";
 
     nativeBuildInputs = (o.nativeBuildInputs or []) ++ [ autoreconfHook ];
 
