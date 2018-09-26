@@ -60,8 +60,10 @@ let
       with pkgs;
 
       with import ./release-common.nix { inherit pkgs; };
+      let stdenv = libcxxStdenv; in
 
       releaseTools.nixBuild {
+        inherit stdenv;
         name = "nix";
         src = tarball;
 
@@ -92,9 +94,10 @@ let
     perlBindings = pkgs.lib.genAttrs systems (system:
 
       let pkgs = import nixpkgs { inherit system; }; in with pkgs;
-      let stdenv = pkgs.clangStdenv; in
+      let stdenv = libcxxStdenv; in
 
       releaseTools.nixBuild {
+        inherit stdenv;
         name = "nix-perl";
         src = tarball;
 
@@ -116,7 +119,6 @@ let
     binaryTarball = pkgs.lib.genAttrs systems (system:
 
       with import nixpkgs { inherit system; };
-      let stdenv = clangStdenv; in
 
       let
         toplevel = builtins.getAttr system jobs.build;

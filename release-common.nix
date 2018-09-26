@@ -2,7 +2,7 @@
 
 with pkgs;
 
-let stdenv = clangStdenv; in
+let stdenv = libcxxStdenv; in
 
 rec {
   # Use "busybox-sandbox-shell" if present,
@@ -49,8 +49,7 @@ rec {
       autoreconfHook
     ];
 
-  buildDeps =
-  [ (curl.overrideAttrs (o:{
+  curl = pkgs.curl.overrideAttrs (o:{
     src = fetchFromGitHub {
       owner = "curl";
       repo = "curl";
@@ -60,9 +59,12 @@ rec {
     name = "curl-2018-09-24";
 
     nativeBuildInputs = (o.nativeBuildInputs or []) ++ [ autoreconfHook ];
+    inherit stdenv;
 
     preConfigure = ":"; # override normal 'preConfigure', not needed when building from git
-  }))
+  });
+  buildDeps =
+  [   curl
       bzip2 xz brotli
       openssl pkgconfig sqlite (boehmgc.override { enableLargeConfig = true; })
       boost
@@ -77,6 +79,7 @@ rec {
       ((aws-sdk-cpp.override {
         apis = ["s3" "transfer"];
         customMemoryManagement = false;
+        inherit stdenv curl;
       }).overrideDerivation (args: rec {
         name = "aws-sdk-cpp-${version}";
         version = "1.5.15";
@@ -87,6 +90,7 @@ rec {
           sha256 = "0a7k2cclmhkhlq5l7lwvq84lczxdjjbr4dayj4ffn02w2ds0dxmh";
         };
         patches = args.patches or [] ++ [ ./transfermanager-content-encoding.patch ];
+
         #patches = args.patches or [] ++ [ (fetchpatch {
         #  url = https://github.com/edolstra/aws-sdk-cpp/commit/3e07e1f1aae41b4c8b340735ff9e8c735f0c063f.patch;
         #  sha256 = "1pij0v449p166f9l29x7ppzk8j7g9k9mp15ilh5qxp29c7fnvxy2";
