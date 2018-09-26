@@ -2,7 +2,7 @@
 
 with pkgs;
 
-let stdenv = libcxxStdenv; in
+let stdenv = clangStdenv; in
 
 rec {
   # Use "busybox-sandbox-shell" if present,
