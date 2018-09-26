@@ -92,6 +92,7 @@ let
     perlBindings = pkgs.lib.genAttrs systems (system:
 
       let pkgs = import nixpkgs { inherit system; }; in with pkgs;
+      let stdenv = pkgs.clangStdenv; in
 
       releaseTools.nixBuild {
         name = "nix-perl";
@@ -115,6 +116,7 @@ let
     binaryTarball = pkgs.lib.genAttrs systems (system:
 
       with import nixpkgs { inherit system; };
+      let stdenv = clangStdenv; in
 
       let
         toplevel = builtins.getAttr system jobs.build;

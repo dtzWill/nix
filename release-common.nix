@@ -2,6 +2,8 @@
 
 with pkgs;
 
+let stdenv = clangStdenv; in
+
 rec {
   # Use "busybox-sandbox-shell" if present,
   # if not (legacy) fallback and hope it's sufficient.
