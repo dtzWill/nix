@@ -11,6 +11,7 @@
 #include "compression.hh"
 #include "json.hh"
 #include "nar-info.hh"
+#include "parsed-derivations.hh"
 
 #include <algorithm>
 #include <iostream>
@@ -740,6 +741,8 @@ private:
     /* The derivation stored at drvPath. */
     std::unique_ptr<BasicDerivation> drv;
 
+    std::unique_ptr<ParsedDerivation> parsedDrv;
+
     /* The remainder is state held during the build. */
 
     /* Locks on the output paths. */
@@ -1139,6 +1142,8 @@ void DerivationGoal::haveDerivation()
         return;
     }
 
+    parsedDrv = std::make_unique<ParsedDerivation>(drvPath, *drv);
+
     /* We are first going to try to create the invalid output paths
        through substitutes.  If that doesn't work, we'll build
        them. */
@@ -1395,7 +1400,7 @@ void DerivationGoal::tryToBuild()
     /* Don't do a remote build if the derivation has the attribute
        `preferLocalBuild' set.  Also, check and repair modes are only
        supported for local builds. */
-    bool buildLocally = buildMode != bmNormal || drv->willBuildLocally();
+    bool buildLocally = buildMode != bmNormal || parsedDrv->willBuildLocally();
 
     auto started = [&]() {
         auto msg = fmt(
@@ -1642,19 +1647,13 @@ HookReply DerivationGoal::tryBuildHook()
 
     try {
 
-        /* Tell the hook about system features (beyond the system type)
-           required from the build machine.  (The hook could parse the
-           drv file itself, but this is easier.) */
-        Strings features = tokenizeString<Strings>(get(drv->env, "requiredSystemFeatures"));
-        for (auto & i : features) checkStoreName(i); /* !!! abuse */
-
         /* Send the request to the hook. */
         worker.hook->sink
             << "try"
             << (worker.getNrLocalBuilds() < settings.maxBuildJobs ? 1 : 0)
             << drv->platform
             << drvPath
-            << features;
+            << parsedDrv->getRequiredSystemFeatures();
         worker.hook->sink.flush();
 
         /* Read the first line of input, which should be a word indicating
@@ -1794,23 +1793,26 @@ static void preloadNSS() {
 void DerivationGoal::startBuilder()
 {
     /* Right platform? */
-    if (!drv->canBuildLocally()) {
-        throw Error(
-            format("a '%1%' is required to build '%3%', but I am a '%2%'")
-            % drv->platform % settings.thisSystem % drvPath);
-    }
+    if (!parsedDrv->canBuildLocally())
+        throw Error("a '%s' with features {%s} is required to build '%s', but I am a '%s' with features {%s}",
+            drv->platform,
+            concatStringsSep(", ", parsedDrv->getRequiredSystemFeatures()),
+            drvPath,
+            settings.thisSystem,
+            concatStringsSep(", ", settings.systemFeatures));
 
     if (drv->isBuiltin())
         preloadNSS();
 
 #if __APPLE__
-    additionalSandboxProfile = get(drv->env, "__sandboxProfile");
+    additionalSandboxProfile = parsedDrv->getStringAttr("__sandboxProfile").value_or("");
 #endif
 
     /* Are we doing a chroot build? */
     {
+        auto noChroot = parsedDrv->getBoolAttr("__noChroot");
         if (settings.sandboxMode == smEnabled) {
-            if (get(drv->env, "__noChroot") == "1")
+            if (noChroot)
                 throw Error(format("derivation '%1%' has '__noChroot' set, "
                     "but that's not allowed when 'sandbox' is 'true'") % drvPath);
 #if __APPLE__
@@ -1823,7 +1825,7 @@ void DerivationGoal::startBuilder()
         else if (settings.sandboxMode == smDisabled)
             useChroot = false;
         else if (settings.sandboxMode == smRelaxed)
-            useChroot = !fixedOutput && get(drv->env, "__noChroot") != "1";
+            useChroot = !fixedOutput && !noChroot;
     }
 
     if (worker.store.storeDir != worker.store.realStoreDir) {
@@ -1874,7 +1876,7 @@ void DerivationGoal::startBuilder()
     writeStructuredAttrs();
 
     /* Handle exportReferencesGraph(), if set. */
-    if (!drv->env.count("__json")) {
+    if (!parsedDrv->getStructuredAttrs()) {
         /* The `exportReferencesGraph' feature allows the references graph
            to be passed to a builder.  This attribute should be a list of
            pairs [name1 path1 name2 path2 ...].  The references graph of
@@ -1939,7 +1941,7 @@ void DerivationGoal::startBuilder()
         PathSet allowedPaths = settings.allowedImpureHostPrefixes;
 
         /* This works like the above, except on a per-derivation level */
-        Strings impurePaths = tokenizeString<Strings>(get(drv->env, "__impureHostDeps"));
+        auto impurePaths = parsedDrv->getStringsAttr("__impureHostDeps").value_or(Strings());
 
         for (auto & i : impurePaths) {
             bool found = false;
@@ -2307,7 +2309,7 @@ void DerivationGoal::initEnv()
        passAsFile is ignored in structure mode because it's not
        needed (attributes are not passed through the environment, so
        there is no size constraint). */
-    if (!drv->env.count("__json")) {
+    if (!parsedDrv->getStructuredAttrs()) {
 
         StringSet passAsFile = tokenizeString<StringSet>(get(drv->env, "passAsFile"));
         int fileNr = 0;
@@ -2354,8 +2356,8 @@ void DerivationGoal::initEnv()
        fixed-output derivations is by definition pure (since we
        already know the cryptographic hash of the output). */
     if (fixedOutput) {
-        Strings varNames = tokenizeString<Strings>(get(drv->env, "impureEnvVars"));
-        for (auto & i : varNames) env[i] = getEnv(i);
+        for (auto & i : parsedDrv->getStringsAttr("impureEnvVars").value_or(Strings()))
+            env[i] = getEnv(i);
     }
 
     /* Currently structured log messages piggyback on stderr, but we
@@ -2370,111 +2372,103 @@ static std::regex shVarName("[A-Za-z_][A-Za-z0-9_]*");
 
 void DerivationGoal::writeStructuredAttrs()
 {
-    auto jsonAttr = drv->env.find("__json");
-    if (jsonAttr == drv->env.end()) return;
+    auto & structuredAttrs = parsedDrv->getStructuredAttrs();
+    if (!structuredAttrs) return;
 
-    try {
+    auto json = *structuredAttrs;
 
-        auto jsonStr = rewriteStrings(jsonAttr->second, inputRewrites);
+    /* Add an "outputs" object containing the output paths. */
+    nlohmann::json outputs;
+    for (auto & i : drv->outputs)
+        outputs[i.first] = rewriteStrings(i.second.path, inputRewrites);
+    json["outputs"] = outputs;
 
-        auto json = nlohmann::json::parse(jsonStr);
-
-        /* Add an "outputs" object containing the output paths. */
-        nlohmann::json outputs;
-        for (auto & i : drv->outputs)
-            outputs[i.first] = rewriteStrings(i.second.path, inputRewrites);
-        json["outputs"] = outputs;
-
-        /* Handle exportReferencesGraph. */
-        auto e = json.find("exportReferencesGraph");
-        if (e != json.end() && e->is_object()) {
-            for (auto i = e->begin(); i != e->end(); ++i) {
-                std::ostringstream str;
-                {
-                    JSONPlaceholder jsonRoot(str, true);
-                    PathSet storePaths;
-                    for (auto & p : *i)
-                        storePaths.insert(p.get<std::string>());
-                    worker.store.pathInfoToJSON(jsonRoot,
-                        exportReferences(storePaths), false, true);
-                }
-                json[i.key()] = nlohmann::json::parse(str.str()); // urgh
+    /* Handle exportReferencesGraph. */
+    auto e = json.find("exportReferencesGraph");
+    if (e != json.end() && e->is_object()) {
+        for (auto i = e->begin(); i != e->end(); ++i) {
+            std::ostringstream str;
+            {
+                JSONPlaceholder jsonRoot(str, true);
+                PathSet storePaths;
+                for (auto & p : *i)
+                    storePaths.insert(p.get<std::string>());
+                worker.store.pathInfoToJSON(jsonRoot,
+                    exportReferences(storePaths), false, true);
             }
+            json[i.key()] = nlohmann::json::parse(str.str()); // urgh
         }
-
-        writeFile(tmpDir + "/.attrs.json", json.dump());
-
-        /* As a convenience to bash scripts, write a shell file that
-           maps all attributes that are representable in bash -
-           namely, strings, integers, nulls, Booleans, and arrays and
-           objects consisting entirely of those values. (So nested
-           arrays or objects are not supported.) */
-
-        auto handleSimpleType = [](const nlohmann::json & value) -> std::experimental::optional<std::string> {
-            if (value.is_string())
-                return shellEscape(value);
-
-            if (value.is_number()) {
-                auto f = value.get<float>();
-                if (std::ceil(f) == f)
-                    return std::to_string(value.get<int>());
-            }
-
-            if (value.is_null())
-                return std::string("''");
-
-            if (value.is_boolean())
-                return value.get<bool>() ? std::string("1") : std::string("");
-
-            return {};
-        };
-
-        std::string jsonSh;
-
-        for (auto i = json.begin(); i != json.end(); ++i) {
-
-            if (!std::regex_match(i.key(), shVarName)) continue;
-
-            auto & value = i.value();
-
-            auto s = handleSimpleType(value);
-            if (s)
-                jsonSh += fmt("declare %s=%s\n", i.key(), *s);
-
-            else if (value.is_array()) {
-                std::string s2;
-                bool good = true;
-
-                for (auto i = value.begin(); i != value.end(); ++i) {
-                    auto s3 = handleSimpleType(i.value());
-                    if (!s3) { good = false; break; }
-                    s2 += *s3; s2 += ' ';
-                }
-
-                if (good)
-                    jsonSh += fmt("declare -a %s=(%s)\n", i.key(), s2);
-            }
-
-            else if (value.is_object()) {
-                std::string s2;
-                bool good = true;
-
-                for (auto i = value.begin(); i != value.end(); ++i) {
-                    auto s3 = handleSimpleType(i.value());
-                    if (!s3) { good = false; break; }
-                    s2 += fmt("[%s]=%s ", shellEscape(i.key()), *s3);
-                }
-
-                if (good)
-                    jsonSh += fmt("declare -A %s=(%s)\n", i.key(), s2);
-            }
-        }
-
-        writeFile(tmpDir + "/.attrs.sh", jsonSh);
-
-    } catch (std::exception & e) {
-        throw Error("cannot process __json attribute of '%s': %s", drvPath, e.what());
     }
+
+    writeFile(tmpDir + "/.attrs.json", rewriteStrings(json.dump(), inputRewrites));
+
+    /* As a convenience to bash scripts, write a shell file that
+       maps all attributes that are representable in bash -
+       namely, strings, integers, nulls, Booleans, and arrays and
+       objects consisting entirely of those values. (So nested
+       arrays or objects are not supported.) */
+
+    auto handleSimpleType = [](const nlohmann::json & value) -> std::experimental::optional<std::string> {
+        if (value.is_string())
+            return shellEscape(value);
+
+        if (value.is_number()) {
+            auto f = value.get<float>();
+            if (std::ceil(f) == f)
+                return std::to_string(value.get<int>());
+        }
+
+        if (value.is_null())
+            return std::string("''");
+
+        if (value.is_boolean())
+            return value.get<bool>() ? std::string("1") : std::string("");
+
+        return {};
+    };
+
+    std::string jsonSh;
+
+    for (auto i = json.begin(); i != json.end(); ++i) {
+
+        if (!std::regex_match(i.key(), shVarName)) continue;
+
+        auto & value = i.value();
+
+        auto s = handleSimpleType(value);
+        if (s)
+            jsonSh += fmt("declare %s=%s\n", i.key(), *s);
+
+        else if (value.is_array()) {
+            std::string s2;
+            bool good = true;
+
+            for (auto i = value.begin(); i != value.end(); ++i) {
+                auto s3 = handleSimpleType(i.value());
+                if (!s3) { good = false; break; }
+                s2 += *s3; s2 += ' ';
+            }
+
+            if (good)
+                jsonSh += fmt("declare -a %s=(%s)\n", i.key(), s2);
+        }
+
+        else if (value.is_object()) {
+            std::string s2;
+            bool good = true;
+
+            for (auto i = value.begin(); i != value.end(); ++i) {
+                auto s3 = handleSimpleType(i.value());
+                if (!s3) { good = false; break; }
+                s2 += fmt("[%s]=%s ", shellEscape(i.key()), *s3);
+            }
+
+            if (good)
+                jsonSh += fmt("declare -A %s=(%s)\n", i.key(), s2);
+        }
+    }
+
+    writeFile(tmpDir + "/.attrs.sh", rewriteStrings(jsonSh, inputRewrites));
 }
 
 
@@ -2629,7 +2623,7 @@ void DerivationGoal::runChild()
                 createDirs(chrootRootDir + "/dev/shm");
                 createDirs(chrootRootDir + "/dev/pts");
                 ss.push_back("/dev/full");
-                if (pathExists("/dev/kvm"))
+                if (settings.systemFeatures.get().count("kvm") && pathExists("/dev/kvm"))
                     ss.push_back("/dev/kvm");
                 ss.push_back("/dev/null");
                 ss.push_back("/dev/random");
@@ -2918,7 +2912,7 @@ void DerivationGoal::runChild()
 
             writeFile(sandboxFile, sandboxProfile);
 
-            bool allowLocalNetworking = get(drv->env, "__darwinAllowLocalNetworking") == "1";
+            bool allowLocalNetworking = parsedDrv->getBoolAttr("__darwinAllowLocalNetworking");
 
             /* The tmpDir in scope points at the temporary build directory for our derivation. Some packages try different mechanisms
                to find temporary directories, so we want to open up a broader place for them to dump their files, if needed. */
@@ -2990,10 +2984,9 @@ void DerivationGoal::runChild()
 /* Parse a list of reference specifiers.  Each element must either be
    a store path, or the symbolic name of the output of the derivation
    (such as `out'). */
-PathSet parseReferenceSpecifiers(Store & store, const BasicDerivation & drv, string attr)
+PathSet parseReferenceSpecifiers(Store & store, const BasicDerivation & drv, const Strings & paths)
 {
     PathSet result;
-    Paths paths = tokenizeString<Paths>(attr);
     for (auto & i : paths) {
         if (store.isStorePath(i))
             result.insert(i);
@@ -3122,7 +3115,7 @@ void DerivationGoal::registerOutputs()
                the derivation to its content-addressed location. */
             Hash h2 = recursive ? hashPath(h.type, actualPath).first : hashFile(h.type, actualPath);
 
-            Path dest = worker.store.makeFixedOutputPath(recursive, h2, drv->env["name"]);
+            Path dest = worker.store.makeFixedOutputPath(recursive, h2, storePathToName(path));
 
             if (h != h2) {
 
@@ -3205,9 +3198,10 @@ void DerivationGoal::registerOutputs()
 
         /* Enforce `allowedReferences' and friends. */
         auto checkRefs = [&](const string & attrName, bool allowed, bool recursive) {
-            if (drv->env.find(attrName) == drv->env.end()) return;
+            auto value = parsedDrv->getStringsAttr(attrName);
+            if (!value) return;
 
-            PathSet spec = parseReferenceSpecifiers(worker.store, *drv, get(drv->env, attrName));
+            PathSet spec = parseReferenceSpecifiers(worker.store, *drv, *value);
 
             PathSet used;
             if (recursive) {
