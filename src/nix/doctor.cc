@@ -42,7 +42,8 @@ struct CmdDoctor : StoreCommand
         checkStoreProtocol(store->getProtocol());
     }
 
-    void checkNixInPath() {
+    void checkNixInPath()
+    {
         PathSet dirs;
 
         for (auto & dir : tokenizeString<Strings>(getEnv("PATH"), ":"))
@@ -58,7 +59,8 @@ struct CmdDoctor : StoreCommand
         }
     }
 
-    void checkProfileRoots(ref<Store> store) {
+    void checkProfileRoots(ref<Store> store)
+    {
         PathSet dirs;
 
         for (auto & dir : tokenizeString<Strings>(getEnv("PATH"), ":")) {
@@ -87,7 +89,8 @@ struct CmdDoctor : StoreCommand
         }
     }
 
-    void checkStoreProtocol(unsigned int storeProto) {
+    void checkStoreProtocol(unsigned int storeProto)
+    {
         auto clientProto = GET_PROTOCOL_MAJOR(SERVE_PROTOCOL_VERSION) == GET_PROTOCOL_MAJOR(storeProto)
             ? SERVE_PROTOCOL_VERSION
             : PROTOCOL_VERSION;
