@@ -760,7 +760,7 @@ void Downloader::download(DownloadRequest && request, Sink & sink)
                 state.wait(state->avail);
             }
 
-            chunk = std::move(state->data);
+            std::swap(chunk, state->data);
 
             state->request.notify_one();
         }
