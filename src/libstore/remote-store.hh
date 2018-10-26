@@ -129,7 +129,7 @@ protected:
 
     ConnectionHandle getConnection();
 
-    friend class ConnectionHandle;
+    friend struct ConnectionHandle;
 
 private:
 
