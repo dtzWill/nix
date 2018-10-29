@@ -50,6 +50,40 @@ allowedRequisites = [ foobar ];
 
   </varlistentry>
 
+  <varlistentry><term><varname>disallowedReferences</varname></term>
+
+    <listitem><para>The optional attribute
+    <varname>disallowedReferences</varname> specifies a list of illegal
+    references (dependencies) of the output of the builder.  For
+    example,
+
+<programlisting>
+disallowedReferences = [ foo ];
+</programlisting>
+
+    enforces that the output of a derivation cannot have a direct runtime
+    dependencies on the derivation <varname>foo</varname>.</para></listitem>
+
+  </varlistentry>
+
+
+  <varlistentry><term><varname>disallowedRequisites</varname></term>
+
+    <listitem><para>This attribute is similar to
+    <varname>disallowedReferences</varname>, but it specifies illegal
+    requisites for the whole closure, so all the dependencies
+    recursively.  For example,
+
+<programlisting>
+disallowedRequisites = [ foobar ];
+</programlisting>
+
+    enforces that the output of a derivation cannot have any
+    runtime dependency on <varname>foobar</varname> or any other derivation
+    depending recursively on <varname>foobar</varname>.</para></listitem>
+
+  </varlistentry>
+
 
   <varlistentry><term><varname>exportReferencesGraph</varname></term>
 
@@ -182,7 +216,7 @@ fetchurl {
 <programlisting>
 { stdenv, curl }: # The <command>curl</command> program is used for downloading.
 
-{ url, md5 }:
+{ url, sha256 }:
 
 stdenv.mkDerivation {
   name = baseNameOf (toString url);
@@ -190,10 +224,10 @@ stdenv.mkDerivation {
   buildInputs = [ curl ];
 
   # This is a fixed-output derivation; the output must be a regular
-  # file with MD5 hash <varname>md5</varname>.
+  # file with SHA256 hash <varname>sha256</varname>.
   outputHashMode = "flat";
-  outputHashAlgo = "md5";
-  outputHash = md5;
+  outputHashAlgo = "sha256";
+  outputHash = sha256;
 
   inherit url;
 }
@@ -203,8 +237,8 @@ stdenv.mkDerivation {
 
     <para>The <varname>outputHashAlgo</varname> attribute specifies
     the hash algorithm used to compute the hash.  It can currently be
-    <literal>"md5"</literal>, <literal>"sha1"</literal> or
-    <literal>"sha256"</literal>.</para>
+    <literal>"sha1"</literal>, <literal>"sha256"</literal> or
+    <literal>"sha512"</literal>.</para>
 
     <para>The <varname>outputHashMode</varname> attribute determines
     how the hash is computed.  It must be one of the following two
@@ -217,7 +251,7 @@ stdenv.mkDerivation {
         <listitem><para>The output must be a non-executable regular
         file.  If it isn’t, the build fails.  The hash is simply
         computed over the contents of that file (so it’s equal to what
-        Unix commands like <command>md5sum</command> or
+        Unix commands like <command>sha256sum</command> or
         <command>sha1sum</command> produce).</para>
 
         <para>This is the default.</para></listitem>

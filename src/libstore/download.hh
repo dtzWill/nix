@@ -38,6 +38,7 @@ struct DownloadResult
     std::string etag;
     std::string effectiveUrl;
     std::shared_ptr<std::string> data;
+    uint64_t bodySize = 0;
 };
 
 class Store;
@@ -86,8 +87,5 @@ public:
 };
 
 bool isUri(const string & s);
-
-/* Decode data according to the Content-Encoding header. */
-ref<std::string> decodeContent(const std::string & encoding, ref<std::string> data);
 
 }

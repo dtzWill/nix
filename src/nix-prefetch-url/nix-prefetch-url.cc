@@ -6,8 +6,13 @@
 #include "eval-inline.hh"
 #include "common-eval-args.hh"
 #include "attr-path.hh"
+#include "legacy.hh"
 
 #include <iostream>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 using namespace nix;
 
@@ -40,12 +45,9 @@ string resolveMirrorUri(EvalState & state, string uri)
 }
 
 
-int main(int argc, char * * argv)
+static int _main(int argc, char * * argv)
 {
-    return handleExceptions(argv[0], [&]() {
-        initNix();
-        initGC();
-
+    {
         HashType ht = htSHA256;
         std::vector<string> args;
         bool printPath = getEnv("PRINT_PATH") != "";
@@ -160,14 +162,20 @@ int main(int argc, char * * argv)
 
             auto actualUri = resolveMirrorUri(*state, uri);
 
-            /* Download the file. */
-            DownloadRequest req(actualUri);
-            req.decompress = false;
-            auto result = getDownloader()->download(req);
-
             AutoDelete tmpDir(createTempDir(), true);
             Path tmpFile = (Path) tmpDir + "/tmp";
-            writeFile(tmpFile, *result.data);
+
+            /* Download the file. */
+            {
+                AutoCloseFD fd = open(tmpFile.c_str(), O_WRONLY | O_CREAT | O_EXCL, 0600);
+                if (!fd) throw SysError("creating temporary file '%s'", tmpFile);
+
+                FdSink sink(fd.get());
+
+                DownloadRequest req(actualUri);
+                req.decompress = false;
+                getDownloader()->download(std::move(req), sink);
+            }
 
             /* Optionally unpack the file. */
             if (unpack) {
@@ -191,7 +199,7 @@ int main(int argc, char * * argv)
 
             /* FIXME: inefficient; addToStore() will also hash
                this. */
-            hash = unpack ? hashPath(ht, tmpFile).first : hashString(ht, *result.data);
+            hash = unpack ? hashPath(ht, tmpFile).first : hashFile(ht, tmpFile);
 
             if (expectedHash != Hash(ht) && expectedHash != hash)
                 throw Error(format("hash mismatch for '%1%'") % uri);
@@ -211,5 +219,9 @@ int main(int argc, char * * argv)
         std::cout << printHash16or32(hash) << std::endl;
         if (printPath)
             std::cout << storePath << std::endl;
-    });
+
+        return 0;
+    }
 }
+
+static RegisterLegacyCommand s1("nix-prefetch-url", _main);

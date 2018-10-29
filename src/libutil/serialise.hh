@@ -214,7 +214,11 @@ struct LambdaSource : Source
 
 /* Convert a function that feeds data into a Sink into a Source. The
    Source executes the function as a coroutine. */
-std::unique_ptr<Source> sinkToSource(std::function<void(Sink &)> fun);
+std::unique_ptr<Source> sinkToSource(
+    std::function<void(Sink &)> fun,
+    std::function<void()> eof = []() {
+        throw EndOfFile("coroutine has finished");
+    });
 
 
 void writePadding(size_t len, Sink & sink);
@@ -280,7 +284,7 @@ inline uint64_t readLongLong(Source & source)
 
 void readPadding(size_t len, Source & source);
 size_t readString(unsigned char * buf, size_t max, Source & source);
-string readString(Source & source);
+string readString(Source & source, size_t max = std::numeric_limits<size_t>::max());
 template<class T> T readStrings(Source & source);
 
 Source & operator >> (Source & in, string & s);

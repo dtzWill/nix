@@ -320,6 +320,8 @@ ref<const ValidPathInfo> Store::queryPathInfo(const Path & storePath)
 void Store::queryPathInfo(const Path & storePath,
     Callback<ref<ValidPathInfo>> callback)
 {
+    assertStorePath(storePath);
+
     auto hashPart = storePathToHash(storePath);
 
     try {
@@ -609,6 +611,8 @@ void copyStorePath(ref<Store> srcStore, ref<Store> dstStore,
             act.progress(total, info->narSize);
         });
         srcStore->narFromPath({storePath}, wrapperSink);
+    }, [&]() {
+        throw EndOfFile("NAR for '%s' fetched from '%s' is incomplete", storePath, srcStore->getUri());
     });
 
     dstStore->addToStore(*info, *source, repair, checkSigs);
@@ -629,11 +633,12 @@ void copyPaths(ref<Store> srcStore, ref<Store> dstStore, const PathSet & storePa
     Activity act(*logger, lvlInfo, actCopyPaths, fmt("copying %d paths", missing.size()));
 
     std::atomic<size_t> nrDone{0};
+    std::atomic<size_t> nrFailed{0};
     std::atomic<uint64_t> bytesExpected{0};
     std::atomic<uint64_t> nrRunning{0};
 
     auto showProgress = [&]() {
-        act.progress(nrDone, missing.size(), nrRunning);
+        act.progress(nrDone, missing.size(), nrRunning, nrFailed);
     };
 
     ThreadPool pool;
@@ -662,7 +667,16 @@ void copyPaths(ref<Store> srcStore, ref<Store> dstStore, const PathSet & storePa
             if (!dstStore->isValidPath(storePath)) {
                 MaintainCount<decltype(nrRunning)> mc(nrRunning);
                 showProgress();
-                copyStorePath(srcStore, dstStore, storePath, repair, checkSigs);
+                try {
+                    copyStorePath(srcStore, dstStore, storePath, repair, checkSigs);
+                } catch (Error &e) {
+                    nrFailed++;
+                    if (!settings.keepGoing)
+                        throw e;
+                    logger->log(lvlError, format("could not copy %s: %s") % storePath % e.what());
+                    showProgress();
+                    return;
+                }
             }
 
             nrDone++;
@@ -834,8 +848,24 @@ ref<Store> openStore(const std::string & uri_,
     if (q != std::string::npos) {
         for (auto s : tokenizeString<Strings>(uri.substr(q + 1), "&")) {
             auto e = s.find('=');
-            if (e != std::string::npos)
-                params[s.substr(0, e)] = s.substr(e + 1);
+            if (e != std::string::npos) {
+                auto value = s.substr(e + 1);
+                std::string decoded;
+                for (size_t i = 0; i < value.size(); ) {
+                    if (value[i] == '%') {
+                        if (i + 2 >= value.size())
+                            throw Error("invalid URI parameter '%s'", value);
+                        try {
+                            decoded += std::stoul(std::string(value, i + 1, 2), 0, 16);
+                            i += 3;
+                        } catch (...) {
+                            throw Error("invalid URI parameter '%s'", value);
+                        }
+                    } else
+                        decoded += value[i++];
+                }
+                params[s.substr(0, e)] = decoded;
+            }
         }
         uri = uri_.substr(0, q);
     }

@@ -33,6 +33,7 @@ struct NixRepl
 {
     string curDir;
     EvalState state;
+    Bindings * autoArgs;
 
     Strings loadedFiles;
 
@@ -233,8 +234,14 @@ void NixRepl::mainLoop(const std::vector<std::string> & files)
             printMsg(lvlError, format(error + "%1%%2%") % (settings.showTrace ? e.prefix() : "") % e.msg());
         }
 
-        // We handled the current input fully, so we should clear it and read brand new input.
         // TODO: history_add ?
+        //if (input.size() > 0) {
+        //    // Remove trailing newline before adding to history
+        //    input.erase(input.size() - 1);
+        //    linenoiseHistoryAdd(input.c_str());
+        //}
+        // We handled the current input fully, so we should clear it and read
+        // brand new input.
         input.clear();
         std::cout << std::endl;
     }
@@ -435,7 +442,7 @@ bool NixRepl::processLine(string line)
             /* We could do the build in this process using buildPaths(),
                but doing it in a child makes it easier to recover from
                problems / SIGINT. */
-            if (runProgram(settings.nixBinDir + "/nix-store", Strings{"-r", drvPath}) == 0) {
+            if (runProgram(settings.nixBinDir + "/nix", Strings{"build", drvPath}) == 0) {
                 Derivation drv = readDerivation(drvPath);
                 std::cout << std::endl << "this derivation produced the following outputs:" << std::endl;
                 for (auto & i : drv.outputs)
@@ -491,8 +498,7 @@ void NixRepl::loadFile(const Path & path)
     loadedFiles.push_back(path);
     Value v, v2;
     state.evalFile(lookupFileArg(state, path), v);
-    Bindings & bindings(*state.allocBindings(0));
-    state.autoCallFunction(bindings, v, v2);
+    state.autoCallFunction(*autoArgs, v, v2);
     addAttrsToScope(v2);
 }
 
@@ -744,6 +750,7 @@ struct CmdRepl : StoreCommand, MixEvalArgs
     void run(ref<Store> store) override
     {
         auto repl = std::make_unique<NixRepl>(searchPath, openStore());
+        repl->autoArgs = getAutoArgs(repl->state);
         repl->mainLoop(files);
     }
 };

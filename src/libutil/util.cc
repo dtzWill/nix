@@ -167,7 +167,7 @@ Path dirOf(const Path & path)
 {
     Path::size_type pos = path.rfind('/');
     if (pos == string::npos)
-        throw Error(format("invalid file name '%1%'") % path);
+        return ".";
     return pos == 0 ? "/" : Path(path, 0, pos);
 }
 
@@ -468,7 +468,7 @@ static Lazy<Path> getHome2([]() {
         std::vector<char> buf(16384);
         struct passwd pwbuf;
         struct passwd * pw;
-        if (getpwuid_r(getuid(), &pwbuf, buf.data(), buf.size(), &pw) != 0
+        if (getpwuid_r(geteuid(), &pwbuf, buf.data(), buf.size(), &pw) != 0
             || !pw || !pw->pw_dir || !pw->pw_dir[0])
             throw Error("cannot determine user's home directory");
         homeDir = pw->pw_dir;

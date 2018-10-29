@@ -13,6 +13,7 @@
 #include "json.hh"
 #include "value-to-json.hh"
 #include "xml-writer.hh"
+#include "legacy.hh"
 
 #include <cerrno>
 #include <ctime>
@@ -150,10 +151,8 @@ static void loadSourceExpr(EvalState & state, const Path & path, Value & v)
     if (stat(path.c_str(), &st) == -1)
         throw SysError(format("getting information about '%1%'") % path);
 
-    if (isNixExpr(path, st)) {
+    if (isNixExpr(path, st))
         state.evalFile(path, v);
-        return;
-    }
 
     /* The path is a directory.  Put the Nix expressions in the
        directory in a set, with the file name of each expression as
@@ -161,13 +160,15 @@ static void loadSourceExpr(EvalState & state, const Path & path, Value & v)
        set flat, not nested, to make it easier for a user to have a
        ~/.nix-defexpr directory that includes some system-wide
        directory). */
-    if (S_ISDIR(st.st_mode)) {
+    else if (S_ISDIR(st.st_mode)) {
         state.mkAttrs(v, 1024);
         state.mkList(*state.allocAttr(v, state.symbols.create("_combineChannels")), 0);
         StringSet attrs;
         getAllExprs(state, path, attrs, v);
         v.attrs->sort();
     }
+
+    else throw Error("path '%s' is not a directory or a Nix expression", path);
 }
 
 
@@ -1311,12 +1312,9 @@ static void opVersion(Globals & globals, Strings opFlags, Strings opArgs)
 }
 
 
-int main(int argc, char * * argv)
+static int _main(int argc, char * * argv)
 {
-    return handleExceptions(argv[0], [&]() {
-        initNix();
-        initGC();
-
+    {
         Strings opFlags, opArgs;
         Operation op = 0;
         RepairFlag repair = NoRepair;
@@ -1428,5 +1426,9 @@ int main(int argc, char * * argv)
         op(globals, opFlags, opArgs);
 
         globals.state->printStats();
-    });
+
+        return 0;
+    }
 }
+
+static RegisterLegacyCommand s1("nix-env", _main);

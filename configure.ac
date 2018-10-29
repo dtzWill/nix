@@ -152,9 +152,9 @@ PKG_CHECK_MODULES([OPENSSL], [libcrypto], [CXXFLAGS="$OPENSSL_CFLAGS $CXXFLAGS"]
 
 # Look for libbz2, a required dependency.
 AC_CHECK_LIB([bz2], [BZ2_bzWriteOpen], [true],
-  [AC_MSG_ERROR([Nix requires libbz2, which is part of bzip2.  See http://www.bzip.org/.])])
+  [AC_MSG_ERROR([Nix requires libbz2, which is part of bzip2.  See https://web.archive.org/web/20180624184756/http://www.bzip.org/.])])
 AC_CHECK_HEADERS([bzlib.h], [true],
-  [AC_MSG_ERROR([Nix requires libbz2, which is part of bzip2.  See http://www.bzip.org/.])])
+  [AC_MSG_ERROR([Nix requires libbz2, which is part of bzip2.  See https://web.archive.org/web/20180624184756/http://www.bzip.org/.])])
 
 
 # Look for SQLite, a required dependency.
@@ -181,12 +181,9 @@ AC_CHECK_LIB([lzma], [lzma_stream_encoder_mt],
   [AC_DEFINE([HAVE_LZMA_MT], [1], [xz multithreaded compression support])])
 
 
-# Look for libbrotli{enc,dec}, optional dependencies
-PKG_CHECK_MODULES([LIBBROTLI], [libbrotlienc libbrotlidec],
-  [AC_DEFINE([HAVE_BROTLI], [1], [Whether to use libbrotli.])
-   CXXFLAGS="$LIBBROTLI_CFLAGS $CXXFLAGS"]
-   have_brotli=1], [have_brotli=])
-AC_SUBST(HAVE_BROTLI, [$have_brotli])
+# Look for libbrotli{enc,dec}.
+PKG_CHECK_MODULES([LIBBROTLI], [libbrotlienc libbrotlidec], [CXXFLAGS="$LIBBROTLI_CFLAGS $CXXFLAGS"])
+
 
 # Look for libseccomp, required for Linux sandboxing.
 if test "$sys_name" = linux; then
@@ -232,12 +229,6 @@ if test "$gc" = yes; then
   CXXFLAGS="$BDW_GC_CFLAGS $CXXFLAGS"
   AC_DEFINE(HAVE_BOEHMGC, 1, [Whether to use the Boehm garbage collector.])
 fi
-
-
-AC_ARG_ENABLE(init-state, AC_HELP_STRING([--disable-init-state],
-  [do not initialise DB etc. in `make install']),
-  init_state=$enableval, init_state=yes)
-#AM_CONDITIONAL(INIT_STATE, test "$init_state" = "yes")
 
 
 # documentation generation switch

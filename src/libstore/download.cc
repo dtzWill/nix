@@ -58,16 +58,6 @@ std::string resolveUri(const std::string & uri)
         return uri;
 }
 
-ref<std::string> decodeContent(const std::string & encoding, ref<std::string> data)
-{
-    if (encoding == "")
-        return data;
-    else if (encoding == "br")
-        return decompress(encoding, *data);
-    else
-        throw Error("unsupported Content-Encoding '%s'", encoding);
-}
-
 struct CurlDownloader : public Downloader
 {
     CURLM * curlm = 0;
@@ -106,6 +96,12 @@ struct CurlDownloader : public Downloader
                 fmt(request.data ? "uploading '%s'" : "downloading '%s'", request.uri),
                 {request.uri}, request.parentAct)
             , callback(callback)
+            , finalSink([this](const unsigned char * data, size_t len) {
+                if (this->request.dataCallback)
+                    this->request.dataCallback((char *) data, len);
+                else
+                    this->result.data->append((char *) data, len);
+              })
         {
             if (!request.expectedETag.empty())
                 requestHeaders = curl_slist_append(requestHeaders, ("If-None-Match: " + request.expectedETag).c_str());
@@ -129,22 +125,40 @@ struct CurlDownloader : public Downloader
             }
         }
 
-        template<class T>
-        void fail(const T & e)
+        void failEx(std::exception_ptr ex)
         {
             assert(!done);
             done = true;
-            callback.rethrow(std::make_exception_ptr(e));
+            callback.rethrow(ex);
         }
+
+        template<class T>
+        void fail(const T & e)
+        {
+            failEx(std::make_exception_ptr(e));
+        }
+
+        LambdaSink finalSink;
+        std::shared_ptr<CompressionSink> decompressionSink;
+
+        std::exception_ptr writeException;
 
         size_t writeCallback(void * contents, size_t size, size_t nmemb)
         {
-            size_t realSize = size * nmemb;
-            if (request.dataCallback)
-                request.dataCallback((char *) contents, realSize);
-            else
-                result.data->append((char *) contents, realSize);
-            return realSize;
+            try {
+                size_t realSize = size * nmemb;
+                result.bodySize += realSize;
+
+                if (!decompressionSink)
+                    decompressionSink = makeDecompressionSink(encoding, finalSink);
+
+                (*decompressionSink)((unsigned char *) contents, realSize);
+
+                return realSize;
+            } catch (...) {
+                writeException = std::current_exception();
+                return 0;
+            }
         }
 
         static size_t writeCallbackWrapper(void * contents, size_t size, size_t nmemb, void * userp)
@@ -162,6 +176,7 @@ struct CurlDownloader : public Downloader
                 auto ss = tokenizeString<vector<string>>(line, " ");
                 status = ss.size() >= 2 ? ss[1] : "";
                 result.data = std::make_shared<std::string>();
+                result.bodySize = 0;
                 encoding = "";
             } else {
                 auto i = line.find(':');
@@ -296,6 +311,7 @@ struct CurlDownloader : public Downloader
             curl_easy_setopt(req, CURLOPT_NETRC, CURL_NETRC_OPTIONAL);
 
             result.data = std::make_shared<std::string>();
+            result.bodySize = 0;
         }
 
         void finish(CURLcode code)
@@ -309,29 +325,35 @@ struct CurlDownloader : public Downloader
                 result.effectiveUrl = effectiveUrlCStr;
 
             debug("finished %s of '%s'; curl status = %d, HTTP status = %d, body = %d bytes",
-                request.verb(), request.uri, code, httpStatus, result.data ? result.data->size() : 0);
+                request.verb(), request.uri, code, httpStatus, result.bodySize);
+
+            if (decompressionSink)
+                decompressionSink->finish();
 
             if (code == CURLE_WRITE_ERROR && result.etag == request.expectedETag) {
                 code = CURLE_OK;
                 httpStatus = 304;
             }
 
-            if (code == CURLE_OK &&
+            if (writeException)
+                failEx(writeException);
+
+            else if (code == CURLE_OK &&
                 (httpStatus == 200 || httpStatus == 201 || httpStatus == 204 || httpStatus == 304 || httpStatus == 226 /* FTP */ || httpStatus == 0 /* other protocol */))
             {
                 result.cached = httpStatus == 304;
                 done = true;
 
                 try {
-                    if (request.decompress)
-                        result.data = decodeContent(encoding, ref<std::string>(result.data));
-                    act.progress(result.data->size(), result.data->size());
+                    act.progress(result.bodySize, result.bodySize);
                     callback(std::move(result));
                 } catch (...) {
                     done = true;
                     callback.rethrow();
                 }
-            } else {
+            }
+
+            else {
                 // We treat most errors as transient, but won't retry when hopeless
                 Error err = Transient;
 
@@ -366,6 +388,7 @@ struct CurlDownloader : public Downloader
                         case CURLE_UNKNOWN_OPTION:
                         case CURLE_SSL_CACERT_BADFILE:
                         case CURLE_TOO_MANY_REDIRECTS:
+                        case CURLE_WRITE_ERROR:
                             err = Misc;
                             break;
                         default: // Shut up warnings
@@ -598,7 +621,7 @@ struct CurlDownloader : public Downloader
             // FIXME: do this on a worker thread
             try {
 #ifdef ENABLE_S3
-                S3Helper s3Helper("", Aws::Region::US_EAST_1); // FIXME: make configurable
+                S3Helper s3Helper("", Aws::Region::US_EAST_1, ""); // FIXME: make configurable
                 auto slash = request.uri.find('/', 5);
                 if (slash == std::string::npos)
                     throw nix::Error("bad S3 URI '%s'", request.uri);
@@ -687,11 +710,12 @@ void Downloader::download(DownloadRequest && request, Sink & sink)
 
         /* If the buffer is full, then go to sleep until the calling
            thread wakes us up (i.e. when it has removed data from the
-           buffer). Note: this does stall the download thread. */
-        while (state->data.size() > 1024 * 1024) {
-            if (state->quit) return;
+           buffer). We don't wait forever to prevent stalling the
+           download thread. (Hopefully sleeping will throttle the
+           sender.) */
+        if (state->data.size() > 1024 * 1024) {
             debug("download buffer is full; going to sleep");
-            state.wait(state->request);
+            state.wait_for(state->request, std::chrono::seconds(10));
         }
 
         /* Append data to the buffer and wake up the calling
@@ -713,28 +737,36 @@ void Downloader::download(DownloadRequest && request, Sink & sink)
             state->request.notify_one();
         }});
 
-    auto state(_state->lock());
-
     while (true) {
         checkInterrupt();
 
-        if (state->quit) {
-            if (state->exc) std::rethrow_exception(state->exc);
-            break;
-        }
+        std::string chunk;
 
-        /* If no data is available, then wait for the download thread
-           to wake us up. */
-        if (state->data.empty())
-            state.wait(state->avail);
+        /* Grab data if available, otherwise wait for the download
+           thread to wake us up. */
+        {
+            auto state(_state->lock());
 
-        /* If data is available, then flush it to the sink and wake up
-           the download thread if it's blocked on a full buffer. */
-        if (!state->data.empty()) {
-            sink((unsigned char *) state->data.data(), state->data.size());
-            state->data.clear();
+            while (state->data.empty()) {
+
+                if (state->quit) {
+                    if (state->exc) std::rethrow_exception(state->exc);
+                    return;
+                }
+
+                state.wait(state->avail);
+            }
+
+            chunk = std::move(state->data);
+
             state->request.notify_one();
         }
+
+        /* Flush the data to the sink and wake up the download thread
+           if it's blocked on a full buffer. We don't hold the state
+           lock while doing this to prevent blocking the download
+           thread if sink() takes a long time. */
+        sink((unsigned char *) chunk.data(), chunk.size());
     }
 }
 

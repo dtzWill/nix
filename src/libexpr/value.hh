@@ -43,8 +43,8 @@ class XMLWriter;
 class JSONPlaceholder;
 
 
-typedef long NixInt;
-typedef float NixFloat;
+typedef int64_t NixInt;
+typedef double NixFloat;
 
 /* External values must descend from ExternalValueBase, so that
  * type-agnostic nix functions (e.g. showType) can be implemented

@@ -450,7 +450,7 @@ static void canonicalisePathMetaData_(const Path & path, uid_t fromUid, InodesSe
     ssize_t eaSize = llistxattr(path.c_str(), nullptr, 0);
 
     if (eaSize < 0) {
-        if (errno != ENOTSUP)
+        if (errno != ENOTSUP && errno != ENODATA)
             throw SysError("querying extended attributes of '%s'", path);
     } else if (eaSize > 0) {
         std::vector<char> eaBuf(eaSize);
@@ -880,6 +880,12 @@ void LocalStore::querySubstitutablePathInfos(const PathSet & paths,
                     narInfo ? narInfo->fileSize : 0,
                     info->narSize};
             } catch (InvalidPath) {
+            } catch (SubstituterDisabled) {
+            } catch (Error & e) {
+                if (settings.tryFallback)
+                    printError(e.what());
+                else
+                    throw;
             }
         }
     }
@@ -1329,6 +1335,12 @@ void LocalStore::verifyPath(const Path & path, const PathSet & store,
     }
 
     validPaths.insert(path);
+}
+
+
+unsigned int LocalStore::getProtocol()
+{
+    return PROTOCOL_VERSION;
 }
 
 

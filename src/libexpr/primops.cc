@@ -866,7 +866,7 @@ static void prim_baseNameOf(EvalState & state, const Pos & pos, Value * * args, 
 static void prim_dirOf(EvalState & state, const Pos & pos, Value * * args, Value & v)
 {
     PathSet context;
-    Path dir = dirOf(state.coerceToPath(pos, *args[0], context));
+    Path dir = dirOf(state.coerceToString(pos, *args[0], context, false, false));
     if (args[0]->type == tPath) mkPath(v, dir.c_str()); else mkString(v, dir, context);
 }
 
@@ -1356,6 +1356,24 @@ static void prim_functionArgs(EvalState & state, const Pos & pos, Value * * args
 }
 
 
+/* Apply a function to every element of an attribute set. */
+static void prim_mapAttrs(EvalState & state, const Pos & pos, Value * * args, Value & v)
+{
+    state.forceAttrs(*args[1], pos);
+
+    state.mkAttrs(v, args[1]->attrs->size());
+
+    for (auto & i : *args[1]->attrs) {
+        Value * vName = state.allocValue();
+        Value * vFun2 = state.allocValue();
+        mkString(*vName, i.name);
+        mkApp(*vFun2, *args[0], *vName);
+        mkApp(*state.allocAttr(v, i.name), *vFun2, *i.value);
+    }
+}
+
+
+
 /*************************************************************
  * Lists
  *************************************************************/
@@ -1410,7 +1428,6 @@ static void prim_tail(EvalState & state, const Pos & pos, Value * * args, Value 
 /* Apply a function to every element of a list. */
 static void prim_map(EvalState & state, const Pos & pos, Value * * args, Value & v)
 {
-    state.forceFunction(*args[0], pos);
     state.forceList(*args[1], pos);
 
     state.mkList(v, args[1]->listSize());
@@ -1489,19 +1506,20 @@ static void prim_foldlStrict(EvalState & state, const Pos & pos, Value * * args,
     state.forceFunction(*args[0], pos);
     state.forceList(*args[2], pos);
 
-    Value * vCur = args[1];
+    if (args[2]->listSize()) {
+        Value * vCur = args[1];
 
-    if (args[2]->listSize())
         for (unsigned int n = 0; n < args[2]->listSize(); ++n) {
             Value vTmp;
             state.callFunction(*args[0], *vCur, vTmp, pos);
             vCur = n == args[2]->listSize() - 1 ? &v : state.allocValue();
             state.callFunction(vTmp, *args[2]->listElems()[n], *vCur, pos);
         }
-    else
-        v = *vCur;
-
-    state.forceValue(v);
+        state.forceValue(v);
+    } else {
+        state.forceValue(*args[1]);
+        v = *args[1];
+    }
 }
 
 
@@ -1538,7 +1556,6 @@ static void prim_all(EvalState & state, const Pos & pos, Value * * args, Value &
 
 static void prim_genList(EvalState & state, const Pos & pos, Value * * args, Value & v)
 {
-    state.forceFunction(*args[0], pos);
     auto len = state.forceInt(*args[1], pos);
 
     if (len < 0)
@@ -1627,6 +1644,35 @@ static void prim_partition(EvalState & state, const Pos & pos, Value * * args, V
 }
 
 
+/* concatMap = f: list: concatLists (map f list); */
+/* C++-version is to avoid allocating `mkApp', call `f' eagerly */
+static void prim_concatMap(EvalState & state, const Pos & pos, Value * * args, Value & v)
+{
+    state.forceFunction(*args[0], pos);
+    state.forceList(*args[1], pos);
+    auto nrLists = args[1]->listSize();
+
+    Value lists[nrLists];
+    size_t len = 0;
+
+    for (unsigned int n = 0; n < nrLists; ++n) {
+        Value * vElem = args[1]->listElems()[n];
+        state.callFunction(*args[0], *vElem, lists[n], pos);
+        state.forceList(lists[n], pos);
+        len += lists[n].listSize();
+    }
+
+    state.mkList(v, len);
+    auto out = v.listElems();
+    for (unsigned int n = 0, pos = 0; n < nrLists; ++n) {
+        auto l = lists[n].listSize();
+        if (l)
+            memcpy(out + pos, lists[n].listElems(), l * sizeof(Value *));
+        pos += l;
+    }
+}
+
+
 /*************************************************************
  * Integer arithmetic
  *************************************************************/
@@ -1634,6 +1680,8 @@ static void prim_partition(EvalState & state, const Pos & pos, Value * * args, V
 
 static void prim_add(EvalState & state, const Pos & pos, Value * * args, Value & v)
 {
+    state.forceValue(*args[0], pos);
+    state.forceValue(*args[1], pos);
     if (args[0]->type == tFloat || args[1]->type == tFloat)
         mkFloat(v, state.forceFloat(*args[0], pos) + state.forceFloat(*args[1], pos));
     else
@@ -1643,6 +1691,8 @@ static void prim_add(EvalState & state, const Pos & pos, Value * * args, Value &
 
 static void prim_sub(EvalState & state, const Pos & pos, Value * * args, Value & v)
 {
+    state.forceValue(*args[0], pos);
+    state.forceValue(*args[1], pos);
     if (args[0]->type == tFloat || args[1]->type == tFloat)
         mkFloat(v, state.forceFloat(*args[0], pos) - state.forceFloat(*args[1], pos));
     else
@@ -1652,6 +1702,8 @@ static void prim_sub(EvalState & state, const Pos & pos, Value * * args, Value &
 
 static void prim_mul(EvalState & state, const Pos & pos, Value * * args, Value & v)
 {
+    state.forceValue(*args[0], pos);
+    state.forceValue(*args[1], pos);
     if (args[0]->type == tFloat || args[1]->type == tFloat)
         mkFloat(v, state.forceFloat(*args[0], pos) * state.forceFloat(*args[1], pos));
     else
@@ -1661,6 +1713,9 @@ static void prim_mul(EvalState & state, const Pos & pos, Value * * args, Value &
 
 static void prim_div(EvalState & state, const Pos & pos, Value * * args, Value & v)
 {
+    state.forceValue(*args[0], pos);
+    state.forceValue(*args[1], pos);
+
     NixFloat f2 = state.forceFloat(*args[1], pos);
     if (f2 == 0) throw EvalError(format("division by zero, at %1%") % pos);
 
@@ -2212,6 +2267,7 @@ void EvalState::createBaseEnv()
     addPrimOp("__intersectAttrs", 2, prim_intersectAttrs);
     addPrimOp("__catAttrs", 2, prim_catAttrs);
     addPrimOp("__functionArgs", 1, prim_functionArgs);
+    addPrimOp("__mapAttrs", 2, prim_mapAttrs);
 
     // Lists
     addPrimOp("__isList", 1, prim_isList);
@@ -2229,6 +2285,7 @@ void EvalState::createBaseEnv()
     addPrimOp("__genList", 2, prim_genList);
     addPrimOp("__sort", 2, prim_sort);
     addPrimOp("__partition", 2, prim_partition);
+    addPrimOp("__concatMap", 2, prim_concatMap);
 
     // Integer arithmetic
     addPrimOp("__add", 2, prim_add);

@@ -1,5 +1,5 @@
 { nix ? builtins.fetchGit ./.
-, nixpkgs ? builtins.fetchGit { url = https://github.com/NixOS/nixpkgs-channels.git; ref = "nixos-18.03"; }
+, nixpkgs ? builtins.fetchGit { url = https://github.com/NixOS/nixpkgs-channels.git; ref = "nixos-18.09"; }
 , officialRelease ? false
 , systems ? [ "x86_64-linux" "i686-linux" "x86_64-darwin" "aarch64-linux" ]
 }:
@@ -67,14 +67,20 @@ let
 
         buildInputs = buildDeps;
 
+        preConfigure =
+          # Copy libboost_context so we don't get all of Boost in our closure.
+          # https://github.com/NixOS/nixpkgs/issues/45462
+          ''
+            mkdir -p $out/lib
+            cp ${boost}/lib/libboost_context* $out/lib
+          '';
+
         configureFlags = configureFlags ++
           [ "--sysconfdir=/etc" ];
 
         enableParallelBuilding = true;
 
         makeFlags = "profiledir=$(out)/etc/profile.d";
-
-        preBuild = "unset NIX_INDENT_MAKE";
 
         installFlags = "sysconfdir=$(out)/etc";
 
@@ -103,8 +109,6 @@ let
         enableParallelBuilding = true;
 
         postUnpack = "sourceRoot=$sourceRoot/perl";
-
-        preBuild = "unset NIX_INDENT_MAKE";
       });
 
 
@@ -189,10 +193,6 @@ let
 
         buildInputs = buildDeps;
 
-        configureFlags = ''
-          --disable-init-state
-        '';
-
         dontInstall = false;
 
         doInstallCheck = true;
@@ -206,14 +206,14 @@ let
       };
 
 
-    rpm_fedora27x86_64 = makeRPM_x86_64 (diskImageFunsFun: diskImageFunsFun.fedora27x86_64) [ ];
+    #rpm_fedora27x86_64 = makeRPM_x86_64 (diskImageFunsFun: diskImageFunsFun.fedora27x86_64) [ ];
 
 
     #deb_debian8i386 = makeDeb_i686 (diskImageFuns: diskImageFuns.debian8i386) [ "libsodium-dev" ] [ "libsodium13" ];
     #deb_debian8x86_64 = makeDeb_x86_64 (diskImageFunsFun: diskImageFunsFun.debian8x86_64) [ "libsodium-dev" ] [ "libsodium13" ];
 
-    deb_ubuntu1710i386 = makeDeb_i686 (diskImageFuns: diskImageFuns.ubuntu1710i386) [ ] [ "libsodium18" ];
-    deb_ubuntu1710x86_64 = makeDeb_x86_64 (diskImageFuns: diskImageFuns.ubuntu1710x86_64) [ ] [ "libsodium18" "libboost-context1.62.0" ];
+    #deb_ubuntu1710i386 = makeDeb_i686 (diskImageFuns: diskImageFuns.ubuntu1710i386) [ ] [ "libsodium18" ];
+    #deb_ubuntu1710x86_64 = makeDeb_x86_64 (diskImageFuns: diskImageFuns.ubuntu1710x86_64) [ ] [ "libsodium18" "libboost-context1.62.0" ];
 
 
     # System tests.
@@ -241,6 +241,7 @@ let
         { diskImage = vmTools.diskImages.ubuntu1204x86_64;
         }
         ''
+          set -x
           useradd -m alice
           su - alice -c 'tar xf ${binaryTarball.x86_64-linux}/*.tar.*'
           mkdir /dest-nix
@@ -249,6 +250,17 @@ let
           su - alice -c '_NIX_INSTALLER_TEST=1 ./nix-*/install'
           su - alice -c 'nix-store --verify'
           su - alice -c 'PAGER= nix-store -qR ${build.x86_64-linux}'
+
+          # Check whether 'nix upgrade-nix' works.
+          cat > /tmp/paths.nix <<EOF
+          {
+            x86_64-linux = "${build.x86_64-linux}";
+          }
+          EOF
+          su - alice -c 'nix upgrade-nix -vvv --nix-store-paths-url file:///tmp/paths.nix'
+          (! [ -L /home/alice/.profile-1-link ])
+          su - alice -c 'PAGER= nix-store -qR ${build.x86_64-linux}'
+
           mkdir -p $out/nix-support
           touch $out/nix-support/hydra-build-products
           umount /nix
@@ -332,7 +344,7 @@ let
       src = jobs.tarball;
       diskImage = (diskImageFun vmTools.diskImageFuns)
         { extraPackages =
-            [ "sqlite" "sqlite-devel" "bzip2-devel" "libcurl-devel" "openssl-devel" "xz-devel" "libseccomp-devel" "libsodium-devel" "boost-devel" ]
+            [ "sqlite" "sqlite-devel" "bzip2-devel" "libcurl-devel" "openssl-devel" "xz-devel" "libseccomp-devel" "libsodium-devel" "boost-devel" "bison" "flex" ]
             ++ extraPackages; };
       # At most 2047MB can be simulated in qemu-system-i386
       memSize = 2047;
