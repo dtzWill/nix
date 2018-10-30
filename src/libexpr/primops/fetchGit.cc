@@ -24,6 +24,20 @@ struct GitInfo
 
 std::regex revRegex("^[0-9a-fA-F]{40}$");
 
+static bool isRevInCache(const std::string & rev, const Path & cacheDir)
+{
+    try {
+        runProgram("git", true, { "-C", cacheDir, "cat-file", "-e", rev });
+        return true;
+    } catch (ExecError & e) {
+        if (WIFEXITED(e.status)) {
+            return false;
+        } else {
+            throw;
+        }
+    }
+}
+
 GitInfo exportGit(ref<Store> store, const std::string & uri,
     std::experimental::optional<std::string> ref, std::string rev,
     const std::string & name)
@@ -94,30 +108,9 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
 
     Path localRefFile = cacheDir + "/refs/heads/" + localRef;
 
-    bool doFetch;
     time_t now = time(0);
-    /* If a rev was specified, we need to fetch if it's not in the
-       repo. */
-    if (rev != "") {
-        try {
-            runProgram("git", true, { "-C", cacheDir, "cat-file", "-e", rev });
-            doFetch = false;
-        } catch (ExecError & e) {
-            if (WIFEXITED(e.status)) {
-                doFetch = true;
-            } else {
-                throw;
-            }
-        }
-    } else {
-        /* If the local ref is older than ‘tarball-ttl’ seconds, do a
-           git fetch to update the local ref to the remote ref. */
-        struct stat st;
-        doFetch = stat(localRefFile.c_str(), &st) != 0 ||
-            st.st_mtime + settings.tarballTtl <= now;
-    }
-    if (doFetch)
-    {
+
+    auto fetchRepo = [&]() {
         Activity act(*logger, lvlTalkative, actUnknown, fmt("fetching Git repository '%s'", uri));
 
         if (ref == "*"s) {
@@ -138,11 +131,24 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
         times[1].tv_usec = 0;
 
         utimes(localRefFile.c_str(), times);
+    };
+
+    if (rev == "") {
+        /* No explicit rev given, so make sure the local ref file
+           which contains the rev exists and is up to date.
+           Update if the local ref is older than ‘tarball-ttl’ seconds. */
+        struct stat st;
+        if (stat(localRefFile.c_str(), &st) != 0 ||
+            st.st_mtime + settings.tarballTtl <= now)
+        {
+            fetchRepo();
+        }
+        rev = chomp(readFile(localRefFile));
     }
 
     // FIXME: check whether rev is an ancestor of ref.
     GitInfo gitInfo;
-    gitInfo.rev = rev != "" ? rev : chomp(readFile(localRefFile));
+    gitInfo.rev = rev;
     gitInfo.shortRev = std::string(gitInfo.rev, 0, 7);
 
     printTalkative("using revision %s of repo '%s'", gitInfo.rev, uri);
@@ -165,6 +171,10 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
 
     } catch (SysError & e) {
         if (e.errNo != ENOENT) throw;
+    }
+
+    if (!isRevInCache(rev, cacheDir)) {
+        fetchRepo();
     }
 
     // FIXME: should pipe this, or find some better way to extract a
