@@ -49,20 +49,19 @@ rec {
       autoreconfHook
     ];
 
-  curl = pkgs.curl.overrideAttrs (o:{
-    src = fetchFromGitHub {
-      owner = "curl";
-      repo = "curl";
-      rev = "5728229a4fd209421fdd324dab5fd445d5917508";
-      sha256 = "1f4wrzdhrdhjny6scc28apadrmcn9jlmwkzgb1ccs6nmjnhs3cyn";
+  curl = pkgs.curl.overrideAttrs (o: rec {
+    name = "curl-7.62.0";
+
+    src = fetchurl {
+      urls = [
+        "https://curl.haxx.se/download/${name}.tar.bz2"
+        "https://github.com/curl/curl/releases/download/${lib.replaceStrings ["."] ["_"] name}/${name}.tar.bz2"
+      ];
+      sha256 = "084niy7cin13ba65p8x38w2xcyc54n3fgzbin40fa2shfr0ca0kq";
     };
-    name = "curl-2018-10-29";
-
-    nativeBuildInputs = (o.nativeBuildInputs or []) ++ [ autoreconfHook ];
     inherit stdenv;
-
-    preConfigure = ":"; # override normal 'preConfigure', not needed when building from git
   });
+
   buildDeps =
   [   curl
       bzip2 xz brotli
