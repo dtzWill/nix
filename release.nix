@@ -60,7 +60,7 @@ let
       with pkgs;
 
       with import ./release-common.nix { inherit pkgs; };
-      let stdenv = clangStdenv; in
+      let stdenv = llvmPackages_5.libcxxStdenv; in
 
       releaseTools.nixBuild {
         inherit stdenv;
@@ -94,7 +94,7 @@ let
     perlBindings = pkgs.lib.genAttrs systems (system:
 
       let pkgs = import nixpkgs { inherit system; }; in with pkgs;
-      let stdenv = clangStdenv; in
+      let stdenv = llvmPackages_5.libcxxStdenv; in
 
       releaseTools.nixBuild {
         inherit stdenv;
