@@ -88,7 +88,7 @@ rec {
           rev = "${version}";
           sha256 = "0hm1gjdckwxplhnq0s76zsvh410bmzbbhv942p9ammim4lvi864h";
         };
-        patches = args.patches or [] ++ [ ./transfermanager-content-encoding.patch ];
+        #patches = args.patches or [] ++ [ ./transfermanager-content-encoding.patch ];
       }));
 
   perlDeps =
