@@ -312,9 +312,7 @@ big = "a very long string";
   <varlistentry><term><varname>preferLocalBuild</varname></term>
 
     <listitem><para>If this attribute is set to
-    <literal>true</literal>, it has two effects.  First, the
-    derivation will always be built, not substituted, even if a
-    substitute is available.  Second, if <link
+    <literal>true</literal> and <link
     linkend="chap-distributed-builds">distributed building is
     enabled</link>, then, if possible, the derivaton will be built
     locally instead of forwarded to a remote machine.  This is
@@ -323,6 +321,20 @@ big = "a very long string";
     locally.</para></listitem>
 
   </varlistentry>
+
+
+  <varlistentry><term><varname>allowSubstitutes</varname></term>
+
+    <listitem><para>If this attribute is set to
+    <literal>false</literal>, then Nix will always build this
+    derivation; it will not try to substitute its outputs. This is
+    useful for very trivial derivations (such as
+    <function>writeText</function> in Nixpkgs) that are cheaper to
+    build locally than to substitute from a binary
+    cache.</para></listitem>
+
+  </varlistentry>
+
 
 </variablelist>
 
