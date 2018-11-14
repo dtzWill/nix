@@ -64,8 +64,8 @@ rec {
 
   buildDeps =
   [   curl
-      bzip2 xz brotli
-      openssl pkgconfig sqlite (boehmgc.override { enableLargeConfig = true; })
+      bzip2 xz brotli editline
+      openssl pkgconfig sqlite boehmgc
       boost
 
       # Tests
