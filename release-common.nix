@@ -60,6 +60,8 @@ rec {
       sha256 = "1n4dzlbllwks8xkz466j362da0pbnxgwr11d64504xzzxka7xawv";
     };
     inherit stdenv;
+
+    patches = null; # remove ipv6 patch now included :/
   });
 
   buildDeps =
