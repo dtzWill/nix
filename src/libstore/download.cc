@@ -625,7 +625,7 @@ struct CurlDownloader : public Downloader
             // FIXME: do this on a worker thread
             try {
 #ifdef ENABLE_S3
-                S3Helper s3Helper("", Aws::Region::US_EAST_1, ""); // FIXME: make configurable
+                S3Helper s3Helper("", Aws::Region::US_EAST_1, "", ""); // FIXME: make configurable
                 auto slash = request.uri.find('/', 5);
                 if (slash == std::string::npos)
                     throw nix::Error("bad S3 URI '%s'", request.uri);
@@ -884,8 +884,8 @@ Path Downloader::downloadCached(ref<Store> store, const string & url_, bool unpa
         Hash gotHash = unpack
             ? hashPath(expectedHash.type, store->toRealPath(storePath)).first
             : hashFile(expectedHash.type, store->toRealPath(storePath));
-        throw nix::Error("hash mismatch in file downloaded from '%s': got hash '%s' instead of the expected hash '%s'",
-            url, gotHash.to_string(), expectedHash.to_string());
+        throw nix::Error("hash mismatch in file downloaded from '%s':\n  wanted: %s\n  got:    %s",
+            url, expectedHash.to_string(), gotHash.to_string());
     }
 
     return store->toRealPath(storePath);
