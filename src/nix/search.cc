@@ -110,7 +110,7 @@ struct CmdSearch : SourceExprCommand, MixJSON
         regexes.reserve(res.size());
 
         for (auto &re : res) {
-            regexes.push_back(std::regex(re, std::regex::extended | std::regex::icase));
+            regexes.push_back(std::regex(re, std::regex::extended | std::regex::icase | std::regex::optimize));
         }
 
         auto state = getEvalState();
