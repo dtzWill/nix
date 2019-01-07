@@ -127,8 +127,6 @@ NEED_PROG(bzip2, bzip2)
 NEED_PROG(gzip, gzip)
 NEED_PROG(xz, xz)
 AC_PATH_PROG(dot, dot)
-AC_PATH_PROG(pv, pv, pv)
-AC_PATH_PROGS(brotli, brotli bro, bro)
 AC_PATH_PROG(lsof, lsof, lsof)
 
 
@@ -214,9 +212,11 @@ AC_SUBST(ENABLE_S3, [$enable_s3])
 AC_LANG_POP(C++)
 
 if test -n "$enable_s3"; then
-  declare -a aws_version_tokens=($(printf '#include <aws/core/VersionConfig.h>\nAWS_SDK_VERSION_STRING' | $CPP $CPPFLAGS - | grep -v '^#.*' | sed 's/"//g' | tr '.' ' '))
-  AC_DEFINE_UNQUOTED([AWS_VERSION_MAJOR], ${aws_version_tokens@<:@0@:>@}, [Major version of aws-sdk-cpp.])
-  AC_DEFINE_UNQUOTED([AWS_VERSION_MINOR], ${aws_version_tokens@<:@1@:>@}, [Minor version of aws-sdk-cpp.])
+  aws_version_tokens="$(printf '#include <aws/core/VersionConfig.h>\nAWS_SDK_VERSION_STRING' | $CPP $CPPFLAGS - | grep -v '^#.*' | sed 's/"//g' | tr '.' ' ')"
+  aws_major_version="$(awk -v ver="${aws_version_tokens}" '{print $1}')"
+  aws_minor_version="$(awk -v ver="${aws_version_tokens}" '{print $2}')"
+  AC_DEFINE_UNQUOTED([AWS_VERSION_MAJOR], ${aws_major_version}, [Major version of aws-sdk-cpp.])
+  AC_DEFINE_UNQUOTED([AWS_VERSION_MINOR], ${aws_minor_version}, [Minor version of aws-sdk-cpp.])
 fi
 
 
@@ -254,11 +254,6 @@ if test "$(uname)" = "Darwin"; then
 fi
 
 
-# Figure out the extension of dynamic libraries.
-eval dynlib_suffix=$shrext_cmds
-AC_SUBST(dynlib_suffix)
-
-
 # Do we have GNU tar?
 AC_MSG_CHECKING([if you have a recent GNU tar])
 if $tar --version 2> /dev/null | grep -q GNU && tar cvf /dev/null --warning=no-timestamp ./config.log > /dev/null; then
@@ -280,9 +275,12 @@ AC_SUBST(sandbox_shell)
 test "$prefix" = NONE && prefix=$ac_default_prefix
 test "$exec_prefix" = NONE && exec_prefix='${prefix}'
 for name in $ac_subst_vars; do
-    declare $name="$(eval echo "${!name}")"
-    declare $name="$(eval echo "${!name}")"
-    declare $name="$(eval echo "${!name}")"
+    for _ in 1 2 3; do
+    if printf '%s' "${name}" | egrep '^[_[:alpha:]][_[:alnum:]]*$'
+    then
+        eval "${name}"="$(eval echo "\${${name}}")"
+    fi
+    done
 done
 
 rm -f Makefile.config
