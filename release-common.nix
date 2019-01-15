@@ -83,12 +83,12 @@ rec {
         inherit stdenv curl;
       }).overrideDerivation (args: rec {
         name = "aws-sdk-cpp-${version}";
-        version = "1.6.42";
+        version = "1.7.34";
         src = fetchFromGitHub {
           owner = "aws";
           repo = "aws-sdk-cpp";
           rev = "${version}";
-          sha256 = "0kpim3sf3hlb3g3x3j27hr12c5jl3frbmx1m2fnk4ja43m8ybw39";
+          sha256 = "0vd90ycqlldgiwygb8lswbi6mmfjhbkkjbpjimssa3qvjdfaybg8";
         };
         #patches = args.patches or [] ++ [ ./transfermanager-content-encoding.patch ];
       }));
