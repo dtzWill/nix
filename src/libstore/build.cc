@@ -53,6 +53,7 @@
 #include <sys/param.h>
 #include <sys/mount.h>
 #include <sys/syscall.h>
+#include <sys/prctl.h>
 #if HAVE_SECCOMP
 #include <seccomp.h>
 #endif
@@ -2782,8 +2783,13 @@ void DerivationGoal::runChild()
 #endif
 
         /* Disable core dumps by default. */
+#if __linux__
+        if (prctl (PR_SET_DUMPABLE, 0) < 0)
+          throw SysError("disabling coredumps using prctl(PR_SET_DUMPABLE, 0)");
+#endif // __linux__
         struct rlimit limit = { 0, RLIM_INFINITY };
-        setrlimit(RLIMIT_CORE, &limit);
+        if (setrlimit(RLIMIT_CORE, &limit) < 0)
+          throw SysError("disabling coredumps by setting RLIMIT_CORE=0");
 
         // FIXME: set other limits to deterministic values?
 
