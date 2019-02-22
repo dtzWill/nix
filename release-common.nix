@@ -77,21 +77,11 @@ rec {
     ++ lib.optionals stdenv.isLinux [libseccomp utillinuxMinimal]
     ++ lib.optional (stdenv.isLinux || stdenv.isDarwin) libsodium
     ++ lib.optional (stdenv.isLinux || stdenv.isDarwin)
-      ((aws-sdk-cpp.override {
+      (aws-sdk-cpp.override {
         apis = ["s3" "transfer"];
         customMemoryManagement = false;
         inherit stdenv curl;
-      }).overrideDerivation (args: rec {
-        name = "aws-sdk-cpp-${version}";
-        version = "1.6.53";
-        src = fetchFromGitHub {
-          owner = "aws";
-          repo = "aws-sdk-cpp";
-          rev = "${version}";
-          sha256 = "08b1pc5gz1pgsbv6dmix60cfs856bbpsiknspxpkvxs1cdf77355";
-        };
-        #patches = args.patches or [] ++ [ ./transfermanager-content-encoding.patch ];
-      }));
+      });
 
   perlDeps =
     [ perl
