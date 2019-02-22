@@ -554,12 +554,13 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
             };
 
             try {
+                bool canUntrustedSet = name == settings.buildTimeout.name
+                    || name == "connect-timeout"
+                    || (name == "builders" && value == "");
+
                 if (name == "ssh-auth-sock") // obsolete
                     ;
-                else if (trusted
-                    || name == settings.buildTimeout.name
-                    || name == "connect-timeout"
-                    || (name == "builders" && value == ""))
+                else if (trusted || canUntrustedSet)
                     settings.set(name, value);
                 else if (setSubstituters(settings.substituters))
                     ;
@@ -567,6 +568,9 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
                     ;
                 else
                     debug("ignoring untrusted setting '%s'", name);
+
+                if (!trusted && !canUntrustedSet)
+                    warn("Untrusted users can't set the option %s.", name);
             } catch (UsageError & e) {
                 warn(e.what());
             }
