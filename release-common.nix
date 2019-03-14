@@ -2,7 +2,7 @@
 
 with pkgs;
 
-let stdenv = llvmPackages_5.libcxxStdenv; in
+let stdenv = llvmPackages_latest.libcxxStdenv; in
 
 rec {
   # Use "busybox-sandbox-shell" if present,
