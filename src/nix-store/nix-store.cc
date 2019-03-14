@@ -427,10 +427,11 @@ static void opQuery(Strings opFlags, Strings opArgs)
                     maybeUseOutputs(store->followLinksToStorePath(i), useOutput, forceRealise),
                     referrers, true, settings.gcKeepOutputs, settings.gcKeepDerivations);
             }
-            Roots roots = store->findRoots();
-            for (auto & i : roots)
-                if (referrers.find(i.second) != referrers.end())
-                    cout << format("%1%\n") % i.first;
+            Roots roots = store->findRoots(false);
+            for (auto & [target, links] : roots)
+                if (referrers.find(target) != referrers.end())
+                    for (auto & link : links)
+                        cout << format("%1% -> %2%\n") % link % target;
             break;
         }
 
@@ -590,9 +591,14 @@ static void opGC(Strings opFlags, Strings opArgs)
     if (!opArgs.empty()) throw UsageError("no arguments expected");
 
     if (printRoots) {
-        Roots roots = store->findRoots();
-        for (auto & i : roots)
-            cout << i.first << " -> " << i.second << std::endl;
+        Roots roots = store->findRoots(false);
+        std::set<std::pair<Path, Path>> roots2;
+        // Transpose and sort the roots.
+        for (auto & [target, links] : roots)
+            for (auto & link : links)
+                roots2.emplace(link, target);
+        for (auto & [link, target] : roots2)
+            std::cout << link << " -> " << target << "\n";
     }
 
     else {

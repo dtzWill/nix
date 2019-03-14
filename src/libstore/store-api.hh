@@ -11,6 +11,7 @@
 #include <atomic>
 #include <limits>
 #include <map>
+#include <unordered_set>
 #include <memory>
 #include <string>
 
@@ -47,7 +48,7 @@ const size_t storePathHashLen = 32; // i.e. 160 bits
 const uint32_t exportMagic = 0x4558494e;
 
 
-typedef std::map<Path, Path> Roots;
+typedef std::unordered_map<Path, std::unordered_set<std::string>> Roots;
 
 
 struct GCOptions
@@ -483,8 +484,10 @@ public:
 
     /* Find the roots of the garbage collector.  Each root is a pair
        (link, storepath) where `link' is the path of the symlink
-       outside of the Nix store that point to `storePath'.  */
-    virtual Roots findRoots()
+       outside of the Nix store that point to `storePath'. If
+       'censor' is true, privacy-sensitive information about roots
+       found in /proc is censored. */
+    virtual Roots findRoots(bool censor)
     { unsupported("findRoots"); }
 
     /* Perform a garbage collection. */
