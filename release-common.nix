@@ -3,6 +3,7 @@
 with pkgs;
 
 let stdenv = llvmPackages_latest.libcxxStdenv; in
+let boost = pkgs.boost.override { inherit stdenv; }; in
 
 rec {
   # Use "busybox-sandbox-shell" if present,
