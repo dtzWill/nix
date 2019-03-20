@@ -60,9 +60,6 @@ let
       with pkgs;
 
       with import ./release-common.nix { inherit pkgs; };
-      let stdenv = llvmPackages_latest.libcxxStdenv; in
-      let boost = pkgs.boost.override { inherit stdenv; }; in
-
       releaseTools.nixBuild {
         inherit stdenv;
         name = "nix";
@@ -95,8 +92,6 @@ let
     perlBindings = pkgs.lib.genAttrs systems (system:
 
       let pkgs = import nixpkgs { inherit system; }; in with pkgs;
-      let stdenv = llvmPackages_latest.libcxxStdenv; in
-      let boost = pkgs.boost.override { inherit stdenv; }; in
 
       releaseTools.nixBuild {
         inherit stdenv;

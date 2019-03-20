@@ -2,10 +2,11 @@
 
 with pkgs;
 
-let stdenv = llvmPackages_latest.libcxxStdenv; in
-let boost = pkgs.boost.override { inherit stdenv; }; in
 
 rec {
+  stdenv = (pkgs.llvmPackages_latest or pkgs.llvmPackages).libcxxStdenv;
+  boost = pkgs.boost.override { inherit stdenv; };
+
   # Use "busybox-sandbox-shell" if present,
   # if not (legacy) fallback and hope it's sufficient.
   sh = pkgs.busybox-sandbox-shell or (busybox.override {
