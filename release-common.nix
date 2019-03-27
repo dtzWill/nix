@@ -52,27 +52,16 @@ rec {
     ];
 
   curl = pkgs.curl.overrideAttrs (o: rec {
-    pname = "curl";
-    version = "2019-03-20";
-    name = "${pname}-${version}";
+    name = "curl-7.64.0";
 
-    src = fetchFromGitHub {
-      owner = pname;
-      repo = pname;
-      rev = "a375ab3be458c1aed126efc9739cf4d6eae9d59b";
-      sha256 = "0j3q2f91wm9z96x4kay5mpyfnm7d6hlrgd16kfxnrwga0zzg2znv";
+    src = fetchurl {
+      urls = [
+        "https://curl.haxx.se/download/${name}.tar.bz2"
+        "https://github.com/curl/curl/releases/download/${lib.replaceStrings ["."] ["_"] name}/${name}.tar.bz2"
+      ];
+      sha256 = "1szj9ia1snbfqzfcsk6hx1j7jhbqsy0f9k5d7x9xiy8w5lfblwym";
     };
-    #src = fetchurl {
-    #  urls = [
-    #    "https://curl.haxx.se/download/${name}.tar.bz2"
-    #    "https://github.com/curl/curl/releases/download/${lib.replaceStrings ["."] ["_"] name}/${name}.tar.bz2"
-    #  ];
-    #  sha256 = "1szj9ia1snbfqzfcsk6hx1j7jhbqsy0f9k5d7x9xiy8w5lfblwym";
-    #};
     inherit stdenv;
-
-    nativeBuildInputs = (o.nativeBuildInputs or []) ++ [ autoreconfHook ];
-    preConfigure = ""; # default preConfigure not needed when building w/git (and problematic)
 
     patches = null; # remove ipv6 patch now included :/
   });
