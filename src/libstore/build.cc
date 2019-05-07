@@ -804,6 +804,9 @@ private:
     /* Whether we're currently doing a chroot build. */
     bool useChroot = false;
 
+    /* Whether we need to perform hash rewriting if there are valid output paths. */
+    bool needsHashRewrite;
+
     Path chrootRootDir;
 
     /* RAII object to delete the chroot directory. */
@@ -995,6 +998,13 @@ DerivationGoal::DerivationGoal(const Path & drvPath, const StringSet & wantedOut
     , wantedOutputs(wantedOutputs)
     , buildMode(buildMode)
 {
+#if __linux__
+    needsHashRewrite = !useChroot;
+#else
+    /* Darwin requires hash rewriting even when sandboxing is enabled. */
+    needsHashRewrite = true;
+#endif
+
     state = &DerivationGoal::getDerivation;
     name = (format("building of '%1%'") % drvPath).str();
     trace("created");
@@ -2075,7 +2085,7 @@ void DerivationGoal::startBuilder()
 #endif
     }
 
-    else {
+    if (needsHashRewrite) {
 
         if (pathExists(homeDir))
             throw Error(format("directory '%1%' exists; please remove it") % homeDir);
@@ -2502,17 +2512,17 @@ void setupSeccomp()
         seccomp_release(ctx);
     });
 
-    if (settings.thisSystem == "x86_64-linux" &&
+    if (nativeSystem == "x86_64-linux" &&
         seccomp_arch_add(ctx, SCMP_ARCH_X86) != 0)
         throw SysError("unable to add 32-bit seccomp architecture");
 
-    if (settings.thisSystem == "x86_64-linux" &&
+    if (nativeSystem == "x86_64-linux" &&
         seccomp_arch_add(ctx, SCMP_ARCH_X32) != 0)
         throw SysError("unable to add X32 seccomp architecture");
 
-    if (settings.thisSystem == "aarch64-linux" &&
+    if (nativeSystem == "aarch64-linux" &&
         seccomp_arch_add(ctx, SCMP_ARCH_ARM) != 0)
-        printError("unsable to add ARM seccomp architecture; this may result in spurious build failures if running 32-bit ARM processes.");
+        printError("unable to add ARM seccomp architecture; this may result in spurious build failures if running 32-bit ARM processes");
 
     /* Prevent builders from creating setuid/setgid binaries. */
     for (int perm : { S_ISUID, S_ISGID }) {
@@ -2880,6 +2890,10 @@ void DerivationGoal::runChild()
                 for (auto & i : missingPaths) {
                     sandboxProfile += (format("\t(subpath \"%1%\")\n") % i.c_str()).str();
                 }
+                /* Also add redirected outputs to the chroot */
+                for (auto & i : redirectedOutputs) {
+                    sandboxProfile += (format("\t(subpath \"%1%\")\n") % i.second.c_str()).str();
+                }
                 sandboxProfile += ")\n";
 
                 /* Our inputs (transitive dependencies and any impurities computed above)
@@ -3058,7 +3072,9 @@ void DerivationGoal::registerOutputs()
                         throw SysError(format("moving build output '%1%' from the sandbox to the Nix store") % path);
             }
             if (buildMode != bmCheck) actualPath = worker.store.toRealPath(path);
-        } else {
+        }
+
+        if (needsHashRewrite) {
             Path redirected = redirectedOutputs[path];
             if (buildMode == bmRepair
                 && redirectedBadOutputs.find(path) != redirectedBadOutputs.end()
