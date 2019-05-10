@@ -5,7 +5,10 @@ with pkgs;
 
 rec {
   stdenv = (pkgs.llvmPackages_latest or pkgs.llvmPackages).libcxxStdenv;
-  boost = pkgs.boost.override { inherit stdenv; };
+
+  # 1.67 has problems w/libc++, probably could use older or newer
+  # let's just use newer when available...
+  boost = (pkgs.boost17x or pkgs.boost169 or pkgs.boost168 or pkgs.boost16x).override { inherit stdenv; };
 
   # Use "busybox-sandbox-shell" if present,
   # if not (legacy) fallback and hope it's sufficient.
