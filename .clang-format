@@ -1,0 +1,18 @@
+BasedOnStyle: WebKit
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+BraceWrapping:
+  AfterFunction: true
+  AfterStruct: true
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeBraces: Custom
+BreakConstructorInitializers: AfterColon
+Cpp11BracedListStyle: true
+DerivePointerAlignment: false
+IndentCaseLabels: true
+MaxEmptyLinesToKeep: 2
+PointerAlignment: Middle
+SortIncludes: false
+SpaceAfterCStyleCast: true
+Standard: Cpp03
