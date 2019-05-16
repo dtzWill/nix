@@ -49,22 +49,23 @@ struct CmdLog : InstallableCommand
         subs.push_front(store);
 
         auto b = installable->toBuildable();
-
-        RunPager pager;
+        std::string what = installable->what();
+        auto showLog = [what](auto log, auto & sub) {
+          RunPager pager;
+          stopProgressBar();
+          printInfo("got build log for '%s' from '%s'", what, sub->getUri());
+          std::cout << *log;
+        };
         for (auto & sub : subs) {
-            auto log = b.drvPath != "" ? sub->getBuildLog(b.drvPath) : nullptr;
-            for (auto & output : b.outputs) {
-                if (log) break;
-                log = sub->getBuildLog(output.second);
+            if (b.drvPath != "") {
+                if (auto log = sub->getBuildLog(b.drvPath))
+                    return showLog(log, sub);
             }
-            if (!log) continue;
-            stopProgressBar();
-            printInfo("got build log for '%s' from '%s'", installable->what(), sub->getUri());
-            std::cout << *log;
-            return;
+            for (auto &output : b.outputs)
+                if (auto log = sub->getBuildLog(output.second))
+                    return showLog(log, sub);
         }
-
-        throw Error("build log of '%s' is not available", installable->what());
+        throw Error("build log of '%s' is not available", what);
     }
 };
 
