@@ -6,14 +6,15 @@ BraceWrapping:
   AfterClass: true
   AfterFunction: true
   AfterStruct: true
+  SplitEmptyRecord: false
 BreakBeforeBinaryOperators: NonAssignment
 BreakBeforeBraces: Custom
-ConstructorInitializerAllOnOneLineOrOnePerLine: true
+BreakConstructorInitializers: BeforeColon
 Cpp11BracedListStyle: true
 DerivePointerAlignment: false
-IndentCaseLabels: true
 MaxEmptyLinesToKeep: 2
 PointerAlignment: Middle
 SortIncludes: false
 SpaceAfterCStyleCast: true
-Standard: Cpp03
+SpaceBeforeCpp11BracedList: false
+
