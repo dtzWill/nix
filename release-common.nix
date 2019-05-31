@@ -49,7 +49,7 @@ rec {
       libxml2
       libxslt
       docbook5
-      docbook5_xsl
+      docbook_xsl_ns
       autoconf-archive
       autoreconfHook
     ];
