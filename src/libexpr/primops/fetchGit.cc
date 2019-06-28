@@ -111,8 +111,28 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
     Path localRefFile = cacheDir + "/refs/heads/" + *ref;
 
     time_t now = time(0);
-
-    auto fetchRepo = [&]() {
+    /* If a rev was specified, we need to fetch if it's not in the
+       repo. */
+    if (rev != "") {
+        try {
+            runProgram("git", true, { "-C", cacheDir, "cat-file", "-e", rev });
+            doFetch = false;
+        } catch (ExecError & e) {
+            if (WIFEXITED(e.status)) {
+                doFetch = true;
+            } else {
+                throw;
+            }
+        }
+    } else {
+        /* If the local ref is older than ‘tarball-ttl’ seconds, do a
+           git fetch to update the local ref to the remote ref. */
+        struct stat st;
+        doFetch = stat(localRefFile.c_str(), &st) != 0 ||
+            (uint64_t) st.st_mtime + settings.tarballTtl <= (uint64_t) now;
+    }
+    if (doFetch)
+    {
         Activity act(*logger, lvlTalkative, actUnknown, fmt("fetching Git repository '%s'", uri));
 
         if (ref == "*"s) {
@@ -252,7 +272,7 @@ static void prim_fetchGit(EvalState & state, const Pos & pos, Value * * args, Va
     v.attrs->sort();
 
     if (state.allowedPaths)
-        state.allowedPaths->insert(gitInfo.storePath);
+        state.allowedPaths->insert(state.store->toRealPath(gitInfo.storePath));
 }
 
 static RegisterPrimOp r("fetchGit", 1, prim_fetchGit);

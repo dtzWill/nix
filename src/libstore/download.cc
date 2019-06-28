@@ -8,6 +8,7 @@
 #include "compression.hh"
 #include "pathlocks.hh"
 #include "finally.hh"
+#include "retry.hh"
 
 #ifdef ENABLE_S3
 #include <aws/core/client/ClientConfiguration.h>
@@ -19,11 +20,9 @@
 #include <curl/curl.h>
 
 #include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <queue>
-#include <random>
 #include <thread>
 
 using namespace std::string_literals;
@@ -33,23 +32,7 @@ namespace nix {
 void DownloadError::anchor() {}
 void SubstituteGone::anchor() {}
 
-struct DownloadSettings : Config
-{
-    Setting<bool> enableHttp2{this, true, "http2",
-        "Whether to enable HTTP/2 support."};
-
-    Setting<std::string> userAgentSuffix{this, "", "user-agent-suffix",
-        "String appended to the user agent in HTTP requests."};
-
-    Setting<size_t> httpConnections{this, 25, "http-connections",
-        "Number of parallel HTTP connections.",
-        {"binary-caches-parallel-connections"}};
-
-    Setting<unsigned long> connectTimeout{this, 0, "connect-timeout",
-        "Timeout for connecting to servers during downloads. 0 means use curl's builtin default."};
-};
-
-static DownloadSettings downloadSettings;
+DownloadSettings downloadSettings;
 
 static GlobalConfig::Register r1(&downloadSettings);
 
@@ -65,9 +48,6 @@ struct CurlDownloader : public Downloader
 {
     CURLM * curlm = 0;
 
-    std::random_device rd;
-    std::mt19937 mt19937;
-
     struct DownloadItem : public std::enable_shared_from_this<DownloadItem>
     {
         CurlDownloader & downloader;
@@ -79,12 +59,6 @@ struct CurlDownloader : public Downloader
         CURL * req = 0;
         bool active = false; // whether the handle has been added to the multi object
         std::string status;
-
-        unsigned int attempt = 0;
-
-        /* Don't start this download until the specified time point
-           has been reached. */
-        std::chrono::steady_clock::time_point embargo;
 
         struct curl_slist * requestHeaders = 0;
 
@@ -322,16 +296,21 @@ struct CurlDownloader : public Downloader
             long httpStatus = 0;
             curl_easy_getinfo(req, CURLINFO_RESPONSE_CODE, &httpStatus);
 
-            char * effectiveUrlCStr;
-            curl_easy_getinfo(req, CURLINFO_EFFECTIVE_URL, &effectiveUrlCStr);
-            if (effectiveUrlCStr)
-                result.effectiveUrl = effectiveUrlCStr;
+            char * effectiveUriCStr;
+            curl_easy_getinfo(req, CURLINFO_EFFECTIVE_URL, &effectiveUriCStr);
+            if (effectiveUriCStr)
+                result.effectiveUri = effectiveUriCStr;
 
             debug("finished %s of '%s'; curl status = %d, HTTP status = %d, body = %d bytes",
                 request.verb(), request.uri, code, httpStatus, result.bodySize);
 
-            if (decompressionSink)
-                decompressionSink->finish();
+            if (decompressionSink) {
+                try {
+                    decompressionSink->finish();
+                } catch (...) {
+                    writeException = std::current_exception();
+                }
+            }
 
             if (code == CURLE_WRITE_ERROR && result.etag == request.expectedETag) {
                 code = CURLE_OK;
@@ -399,9 +378,7 @@ struct CurlDownloader : public Downloader
                     }
                 }
 
-                attempt++;
-
-                auto exc =
+                fail(
                     code == CURLE_ABORTED_BY_CALLBACK && _isInterrupted
                     ? DownloadError(Interrupted, fmt("%s of '%s' was interrupted", request.verb(), request.uri))
                     : httpStatus != 0
@@ -412,31 +389,15 @@ struct CurlDownloader : public Downloader
                         )
                     : DownloadError(err,
                         fmt("unable to %s '%s': %s (%d)",
-                            request.verb(), request.uri, curl_easy_strerror(code), code));
-
-                /* If this is a transient error, then maybe retry the
-                   download after a while. */
-                if (err == Transient && attempt < request.tries) {
-                    int ms = request.baseRetryTimeMs * std::pow(2.0f, attempt - 1 + std::uniform_real_distribution<>(0.0, 0.5)(downloader.mt19937));
-                    printError(format("warning: %s; retrying in %d ms") % exc.what() % ms);
-                    embargo = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
-                    downloader.enqueueItem(shared_from_this());
-                }
-                else
-                    fail(exc);
+                            request.verb(), request.uri, curl_easy_strerror(code), code)));
             }
         }
     };
 
     struct State
     {
-        struct EmbargoComparator {
-            bool operator() (const std::shared_ptr<DownloadItem> & i1, const std::shared_ptr<DownloadItem> & i2) {
-                return i1->embargo > i2->embargo;
-            }
-        };
         bool quit = false;
-        std::priority_queue<std::shared_ptr<DownloadItem>, std::vector<std::shared_ptr<DownloadItem>>, EmbargoComparator> incoming;
+        std::vector<std::shared_ptr<DownloadItem>> incoming;
     };
 
     Sync<State> state_;
@@ -449,7 +410,6 @@ struct CurlDownloader : public Downloader
     std::thread workerThread;
 
     CurlDownloader()
-        : mt19937(rd())
     {
         static std::once_flag globalInit;
         std::call_once(globalInit, curl_global_init, CURL_GLOBAL_ALL);
@@ -543,9 +503,7 @@ struct CurlDownloader : public Downloader
 
             nextWakeup = std::chrono::steady_clock::time_point();
 
-            /* Add new curl requests from the incoming requests queue,
-               except for requests that are embargoed (waiting for a
-               retry timeout to expire). */
+            /* Add new curl requests from the incoming requests queue. */
             if (extraFDs[0].revents & CURL_WAIT_POLLIN) {
                 char buf[1024];
                 auto res = read(extraFDs[0].fd, buf, sizeof(buf));
@@ -554,22 +512,9 @@ struct CurlDownloader : public Downloader
             }
 
             std::vector<std::shared_ptr<DownloadItem>> incoming;
-            auto now = std::chrono::steady_clock::now();
-
             {
                 auto state(state_.lock());
-                while (!state->incoming.empty()) {
-                    auto item = state->incoming.top();
-                    if (item->embargo <= now) {
-                        incoming.push_back(item);
-                        state->incoming.pop();
-                    } else {
-                        if (nextWakeup == std::chrono::steady_clock::time_point()
-                            || item->embargo < nextWakeup)
-                            nextWakeup = item->embargo;
-                        break;
-                    }
-                }
+                std::swap(state->incoming, incoming);
                 quit = state->quit;
             }
 
@@ -596,7 +541,7 @@ struct CurlDownloader : public Downloader
 
         {
             auto state(state_.lock());
-            while (!state->incoming.empty()) state->incoming.pop();
+            state->incoming.clear();
             state->quit = true;
         }
     }
@@ -612,7 +557,7 @@ struct CurlDownloader : public Downloader
             auto state(state_.lock());
             if (state->quit)
                 throw nix::Error("cannot enqueue download request because the download thread is shutting down");
-            state->incoming.push(item);
+            state->incoming.push_back(item);
         }
         writeFull(wakeupPipe.writeSide.get(), " ");
     }
@@ -695,7 +640,9 @@ std::future<DownloadResult> Downloader::enqueueDownload(const DownloadRequest & 
 
 DownloadResult Downloader::download(const DownloadRequest & request)
 {
-    return enqueueDownload(request).get();
+    return retry<DownloadResult>(request.tries, [&]() {
+        return enqueueDownload(request).get();
+    });
 }
 
 void Downloader::download(DownloadRequest && request, Sink & sink)
@@ -793,20 +740,26 @@ void Downloader::download(DownloadRequest && request, Sink & sink)
     }
 }
 
-Path Downloader::downloadCached(ref<Store> store, const string & url_, bool unpack, string name, const Hash & expectedHash, string * effectiveUrl, int ttl)
+CachedDownloadResult Downloader::downloadCached(
+    ref<Store> store, const CachedDownloadRequest & request)
 {
-    auto url = resolveUri(url_);
+    auto url = resolveUri(request.uri);
 
+    auto name = request.name;
     if (name == "") {
         auto p = url.rfind('/');
         if (p != string::npos) name = string(url, p + 1);
     }
 
     Path expectedStorePath;
-    if (expectedHash) {
-        expectedStorePath = store->makeFixedOutputPath(unpack, expectedHash, name);
-        if (store->isValidPath(expectedStorePath))
-            return store->toRealPath(expectedStorePath);
+    if (request.expectedHash) {
+        expectedStorePath = store->makeFixedOutputPath(request.unpack, request.expectedHash, name);
+        if (store->isValidPath(expectedStorePath)) {
+            CachedDownloadResult result;
+            result.storePath = expectedStorePath;
+            result.path = store->toRealPath(expectedStorePath);
+            return result;
+        }
     }
 
     Path cacheDir = getCacheDir() + "/nix/tarballs";
@@ -825,6 +778,8 @@ Path Downloader::downloadCached(ref<Store> store, const string & url_, bool unpa
 
     bool skip = false;
 
+    CachedDownloadResult result;
+
     if (pathExists(fileLink) && pathExists(dataFile)) {
         storePath = readLink(fileLink);
         store->addTempRoot(storePath);
@@ -832,10 +787,10 @@ Path Downloader::downloadCached(ref<Store> store, const string & url_, bool unpa
             auto ss = tokenizeString<vector<string>>(readFile(dataFile), "\n");
             if (ss.size() >= 3 && ss[0] == url) {
                 time_t lastChecked;
-                if (string2Int(ss[2], lastChecked) && lastChecked + ttl >= time(0)) {
+                if (string2Int(ss[2], lastChecked) && (uint64_t) lastChecked + request.ttl >= (uint64_t) time(0)) {
                     skip = true;
-                    if (effectiveUrl)
-                        *effectiveUrl = url_;
+                    result.effectiveUri = request.uri;
+                    result.etag = ss[1];
                 } else if (!ss[1].empty()) {
                     debug(format("verifying previous ETag '%1%'") % ss[1]);
                     expectedETag = ss[1];
@@ -848,17 +803,17 @@ Path Downloader::downloadCached(ref<Store> store, const string & url_, bool unpa
     if (!skip) {
 
         try {
-            DownloadRequest request(url);
-            request.expectedETag = expectedETag;
-            auto res = download(request);
-            if (effectiveUrl)
-                *effectiveUrl = res.effectiveUrl;
+            DownloadRequest request2(url);
+            request2.expectedETag = expectedETag;
+            auto res = download(request2);
+            result.effectiveUri = res.effectiveUri;
+            result.etag = res.etag;
 
             if (!res.cached) {
                 ValidPathInfo info;
                 StringSink sink;
                 dumpString(*res.data, sink);
-                Hash hash = hashString(expectedHash ? expectedHash.type : htSHA256, *res.data);
+                Hash hash = hashString(request.expectedHash ? request.expectedHash.type : htSHA256, *res.data);
                 info.path = store->makeFixedOutputPath(false, hash, name);
                 info.narHash = hashString(htSHA256, *sink.s);
                 info.narSize = sink.s->size();
@@ -873,11 +828,12 @@ Path Downloader::downloadCached(ref<Store> store, const string & url_, bool unpa
             writeFile(dataFile, url + "\n" + res.etag + "\n" + std::to_string(time(0)) + "\n");
         } catch (DownloadError & e) {
             if (storePath.empty()) throw;
-            printError(format("warning: %1%; using cached result") % e.msg());
+            warn("%s; using cached result", e.msg());
+            result.etag = expectedETag;
         }
     }
 
-    if (unpack) {
+    if (request.unpack) {
         Path unpackedLink = cacheDir + "/" + baseNameOf(storePath) + "-unpacked";
         PathLocks lock2({unpackedLink}, fmt("waiting for lock on '%1%'...", unpackedLink));
         Path unpackedStorePath;
@@ -900,14 +856,16 @@ Path Downloader::downloadCached(ref<Store> store, const string & url_, bool unpa
     }
 
     if (expectedStorePath != "" && storePath != expectedStorePath) {
-        Hash gotHash = unpack
-            ? hashPath(expectedHash.type, store->toRealPath(storePath)).first
-            : hashFile(expectedHash.type, store->toRealPath(storePath));
+        Hash gotHash = request.unpack
+            ? hashPath(request.expectedHash.type, store->toRealPath(storePath)).first
+            : hashFile(request.expectedHash.type, store->toRealPath(storePath));
         throw nix::Error("hash mismatch in file downloaded from '%s':\n  wanted: %s\n  got:    %s",
-            url, expectedHash.to_string(), gotHash.to_string());
+            url, request.expectedHash.to_string(), gotHash.to_string());
     }
 
-    return store->toRealPath(storePath);
+    result.storePath = storePath;
+    result.path = store->toRealPath(storePath);
+    return result;
 }
 
 
@@ -919,6 +877,5 @@ bool isUri(const string & s)
     string scheme(s, 0, pos);
     return scheme == "http" || scheme == "https" || scheme == "file" || scheme == "channel" || scheme == "git" || scheme == "s3" || scheme == "ssh";
 }
-
 
 }
