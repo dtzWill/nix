@@ -112,7 +112,7 @@ void initNix()
     size_t stacksize;
     if (pthread_attr_getstacksize(&attr, &stacksize))
       throw SysError("pthread_attr_getstacksize");
-    stacksize = std::max<size_t>(stacksize, 1ULL << 23);
+    stacksize = std::max<size_t>(stacksize, 1ULL << 21); // 2MB
     if (pthread_attr_setstacksize(&attr, stacksize))
       throw SysError("pthread_attr_setstacksize");
     if (pthread_setattr_default_np(&attr))
