@@ -925,8 +925,8 @@ CachedDownloadResult Downloader::downloadCached(
         Hash gotHash = request.unpack
             ? hashPath(request.expectedHash.type, store->toRealPath(storePath)).first
             : hashFile(request.expectedHash.type, store->toRealPath(storePath));
-        throw nix::Error(statusCode, "hash mismatch in file downloaded from '%s':\n  wanted: %s\n  got:    %s",
-            url, request.expectedHash.to_string(), gotHash.to_string());
+        throw nix::Error(statusCode, "hash mismatch in file downloaded from '%s':\n  wanted: %s\n  got:    %s\n  sri:    %s",
+            url, request.expectedHash.to_string(), gotHash.to_string(), gotHash.to_string(SRI));
     }
 
     result.storePath = storePath;

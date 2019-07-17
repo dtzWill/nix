@@ -1021,12 +1021,12 @@ void LocalStore::addToStore(const ValidPathInfo & info, Source & source,
             auto hashResult = hashSink.finish();
 
             if (hashResult.first != info.narHash)
-                throw Error("hash mismatch importing path '%s';\n  wanted: %s\n  got:    %s",
-                    info.path, info.narHash.to_string(), hashResult.first.to_string());
+                throw Error("hash mismatch importing path '%s';\n  wanted: %s\n  got:    %s\n  sri:    %s",
+                    info.path, info.narHash.to_string(), hashResult.first.to_string(), hashResult.first.to_string(SRI));
 
             if (hashResult.second != info.narSize)
-                throw Error("size mismatch importing path '%s';\n  wanted: %s\n  got:   %s",
-                    info.path, info.narSize, hashResult.second);
+                throw Error("size mismatch importing path '%s';\n  wanted: %s\n  got:   %s\n  sri:    %s",
+                    info.path, info.narSize, hashResult.second, hashResult.second.to_string(SRI));
 
             autoGC();
 
