@@ -37,9 +37,9 @@ static string makeNode(const ValidPathInfo & info)
 {
     return fmt(
         "  <node id=\"%1%\">\n"
-        "    <data key=\"narSize\">%2%</data>\n"
+        "    <data key=\"nSz\">%2%</data>\n"
         "    <data key=\"name\">%3%</data>\n"
-        "    <data key=\"type\">%4%</data>\n"
+        "    <data key=\"ty\">%4%</data>\n"
         "  </node>\n",
         info.path,
         info.narSize,
@@ -54,13 +54,14 @@ void printGraphML(ref<Store> store, const PathSet & roots)
     PathSet doneSet;
     std::pair<PathSet::iterator,bool> ret;
 
-    cout << "<?xml version='1.0' encoding='utf-8'?>\n"
+    cout << "<?xml version='1.0' encoding='UTF-8'?>\n"
          << "<graphml xmlns='http://graphml.graphdrawing.org/xmlns'\n"
          << "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'\n"
-         << "    xsi:schemaLocation='http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd'>\n"
-         << "<key id='narSize' for='node' attr.name='narSize' attr.type='int'/>"
-         << "<key id='name' for='node' attr.name='name' attr.type='string'/>"
-         << "<key id='type' for='node' attr.name='type' attr.type='string'/>"
+         << "    xsi:schemaLocation='http://graphml.graphdrawing.org/xmlns\n
+                                     http://graphml.graphdrawing.org/xmlns/1.1/graphml.xsd'>\n"
+         << "<key id='nSz' for='node' attr.name='narSize' attr.type='int'/>"
+         << "<key id='name' for='node' attr.name='label' attr.type='string'/>"
+         << "<key id='ty' for='node' attr.name='type' attr.type='string'/>"
          << "<graph id='G' edgedefault='directed'>\n";
 
     while (!workList.empty()) {
