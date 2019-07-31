@@ -57,8 +57,8 @@ void printGraphML(ref<Store> store, const PathSet & roots)
     cout << "<?xml version='1.0' encoding='UTF-8'?>\n"
          << "<graphml xmlns='http://graphml.graphdrawing.org/xmlns'\n"
          << "    xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance'\n"
-         << "    xsi:schemaLocation='http://graphml.graphdrawing.org/xmlns\n
-                                     http://graphml.graphdrawing.org/xmlns/1.1/graphml.xsd'>\n"
+         << "    xsi:schemaLocation='http://graphml.graphdrawing.org/xmlns\n"
+         << "                        http://graphml.graphdrawing.org/xmlns/1.1/graphml.xsd'>\n"
          << "<key id='nSz' for='node' attr.name='narSize' attr.type='int'/>"
          << "<key id='name' for='node' attr.name='label' attr.type='string'/>"
          << "<key id='ty' for='node' attr.name='type' attr.type='string'/>"
