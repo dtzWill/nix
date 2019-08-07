@@ -12,8 +12,6 @@
 
 namespace nix {
 
-void AlreadyLocked::anchor() {}
-
 AutoCloseFD openLockFile(const Path & path, bool create)
 {
     AutoCloseFD fd;
