@@ -239,8 +239,6 @@ struct CurlDownloader : public Downloader
             return ((DownloadItem *) userp)->readCallback(buffer, size, nitems);
         }
 
-        long lowSpeedTimeout = 300;
-
         void init()
         {
             if (!req) req = curl_easy_init();
@@ -300,7 +298,7 @@ struct CurlDownloader : public Downloader
             curl_easy_setopt(req, CURLOPT_CONNECTTIMEOUT, downloadSettings.connectTimeout.get());
 
             curl_easy_setopt(req, CURLOPT_LOW_SPEED_LIMIT, 1L);
-            curl_easy_setopt(req, CURLOPT_LOW_SPEED_TIME, lowSpeedTimeout);
+            curl_easy_setopt(req, CURLOPT_LOW_SPEED_TIME, downloadSettings.stalledDownloadTimeout.get());
 
             /* If no file exist in the specified path, curl continues to work
                anyway as if netrc support was disabled. */
