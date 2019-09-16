@@ -56,6 +56,10 @@ class AwsLogger : public Aws::Utils::Logging::FormattedLogSystem
     {
         debug("AWS: %s", chomp(statement));
     }
+
+    void Flush() override {
+      /* no-op */
+    };
 };
 
 static void initAWS()
