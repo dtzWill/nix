@@ -57,9 +57,11 @@ class AwsLogger : public Aws::Utils::Logging::FormattedLogSystem
         debug("AWS: %s", chomp(statement));
     }
 
+#if AWS_VERSION_MAJOR == 1 && AWS_VERSION_MINOR == 7 && AWS_VERSION_PATCH >= 151
     void Flush() override {
       /* no-op */
     };
+#endif
 };
 
 static void initAWS()
