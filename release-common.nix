@@ -55,14 +55,14 @@ rec {
     ];
 
   curl = pkgs.curl.overrideAttrs (o: rec {
-    name = "curl-7.65.3";
+    name = "curl-7.66.0";
 
     src = fetchurl {
       urls = [
         "https://curl.haxx.se/download/${name}.tar.bz2"
         "https://github.com/curl/curl/releases/download/${lib.replaceStrings ["."] ["_"] name}/${name}.tar.bz2"
       ];
-      sha256 = "02g5zj4rq5sr15jzjqk70xk4k92i2pdmpq00xb4pnba8ps1mx18a";
+      sha256 = "0hd1wwplw357hn876s4n2gk7dpmd1gfw5d2c3yi21i1m09726636";
     };
     inherit stdenv;
 
