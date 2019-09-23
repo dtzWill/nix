@@ -2366,7 +2366,7 @@ void DerivationGoal::startBuilder()
                 child = clone(childEntry, stack + stackSize, flags, this);
             }
             if (child == -1 && (errno == EPERM || errno == EINVAL)) {
-                /* Some distros patch Linux to not allow unpriveleged
+                /* Some distros patch Linux to not allow unprivileged
                  * user namespaces. If we get EPERM or EINVAL, try
                  * without CLONE_NEWUSER and see if that works.
                  */
@@ -2412,8 +2412,7 @@ void DerivationGoal::startBuilder()
         writeFile("/proc/" + std::to_string(pid) + "/gid_map",
             (format("%d %d 1") % sandboxGid % hostGid).str());
 
-        /* Signal the builder that we've updated its user
-           namespace. */
+        /* Signal the builder that we've updated its user namespace. */
         writeFull(userNamespaceSync.writeSide.get(), "1");
         userNamespaceSync.writeSide = -1;
 
