@@ -289,6 +289,8 @@ void parseDump(ParseSink & sink, Source & source)
            decoded.  Ignore and throw the exception below. */
       if (version != narVersionMagic1)
         e.addPrefix("bad archive: input doesn't look like a Nix archive");
+      else
+        e.addPrefix("bad archive: looks like Nix archive");
       throw;
     }
     if (version != narVersionMagic1)
