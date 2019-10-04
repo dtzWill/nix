@@ -287,6 +287,9 @@ void parseDump(ParseSink & sink, Source & source)
     } catch (SerialisationError & e) {
         /* This generally means the integer at the start couldn't be
            decoded.  Ignore and throw the exception below. */
+      if (version != narVersionMagic1)
+        e.addPrefix("bad archive: input doesn't look like a Nix archive");
+      throw;
     }
     if (version != narVersionMagic1)
         throw badArchive("input doesn't look like a Nix archive");
