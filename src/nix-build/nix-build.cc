@@ -282,12 +282,12 @@ static void _main(int argc, char * * argv)
                     absolute = canonPath(absPath(i), true);
                 } catch (Error & e) {};
                 if (store->isStorePath(absolute) && std::regex_match(absolute, std::regex(".*\\.drv(!.*)?")))
-                drvs.push_back(DrvInfo(*state, store, absolute));
-            else
-                /* If we're in a #! script, interpret filenames
-                   relative to the script. */
-                exprs.push_back(state->parseExprFromFile(resolveExprPath(state->checkSourcePath(lookupFileArg(*state,
-                    inShebang && !packages ? absPath(i, absPath(dirOf(script))) : i)))));
+                    drvs.push_back(DrvInfo(*state, store, absolute));
+                else
+                    /* If we're in a #! script, interpret filenames
+                       relative to the script. */
+                    exprs.push_back(state->parseExprFromFile(resolveExprPath(state->checkSourcePath(lookupFileArg(*state,
+                                        inShebang && !packages ? absPath(i, absPath(dirOf(script))) : i)))));
             }
         }
 
@@ -412,7 +412,7 @@ static void _main(int argc, char * * argv)
         auto rcfile = (Path) tmpDir + "/rc";
         writeFile(rcfile, fmt(
                 (keepTmp ? "" : "rm -rf '%1%'; "s) +
-                "[ -n \"$PS1\" ] && [ -e ~/.bashrc ] && source ~/.bashrc; "
+                (pure ? "" : "[ -n \"$PS1\" ] && [ -e ~/.bashrc ] && source ~/.bashrc;") +
                 "%2%"
                 "dontAddDisableDepTrack=1; "
                 "[ -e $stdenv/setup ] && source $stdenv/setup; "

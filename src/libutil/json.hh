@@ -168,10 +168,7 @@ public:
     {
     }
 
-    ~JSONPlaceholder()
-    {
-        assert(!first || std::uncaught_exceptions());
-    }
+    ~JSONPlaceholder();
 
     template<typename T>
     void write(const T & v)

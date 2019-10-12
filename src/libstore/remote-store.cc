@@ -151,7 +151,7 @@ void RemoteStore::initConnection(Connection & conn)
         conn.to << PROTOCOL_VERSION;
 
         if (GET_PROTOCOL_MINOR(conn.daemonVersion) >= 14) {
-            int cpu = settings.lockCPU ? lockToCurrentCPU() : -1;
+            int cpu = sameMachine() && settings.lockCPU ? lockToCurrentCPU() : -1;
             if (cpu != -1)
                 conn.to << 1 << cpu;
             else
@@ -229,7 +229,7 @@ struct ConnectionHandle
 
     ~ConnectionHandle()
     {
-        if (!daemonException && std::uncaught_exceptions()) {
+        if (!daemonException && std::uncaught_exception()) {
             handle.markBad();
             debug("closing daemon connection because of an exception");
         }

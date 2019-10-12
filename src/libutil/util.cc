@@ -483,6 +483,16 @@ Path createTempDir(const Path & tmpRoot, const Path & prefix,
 }
 
 
+std::string getUserName()
+{
+    auto pw = getpwuid(geteuid());
+    std::string name = pw ? pw->pw_name : getEnv("USER", "");
+    if (name.empty())
+        throw Error("cannot figure out user name");
+    return name;
+}
+
+
 static Lazy<Path> getHome2([]() {
     Path homeDir = getEnv("HOME");
     if (homeDir.empty()) {
@@ -1177,7 +1187,7 @@ void _interrupted()
     /* Block user interrupts while an exception is being handled.
        Throwing an exception while another exception is being handled
        kills the program! */
-    if (!interruptThrown && !std::uncaught_exceptions()) {
+    if (!interruptThrown && !std::uncaught_exception()) {
         interruptThrown = true;
         throw Interrupted("interrupted by the user");
     }
