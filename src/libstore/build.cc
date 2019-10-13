@@ -2010,13 +2010,6 @@ void DerivationGoal::startBuilder()
     auto drvName = storePathToName(drvPath);
     tmpDir = createTempDir("", "nix-build-" + drvName, false, false, 0700);
 
-    /* In a sandbox, for determinism, always use the same temporary
-       directory. */
-#if __linux__
-    tmpDirInSandbox = useChroot ? settings.sandboxBuildDir : tmpDir;
-#else
-    tmpDirInSandbox = tmpDir;
-#endif
     chownToBuilder(tmpDir);
 
     /* Substitute output placeholders with the actual output paths. */
@@ -2425,7 +2418,6 @@ void DerivationGoal::startBuilder()
         int res = helper.wait();
         if (res != 0 && settings.sandboxFallback) {
             useChroot = false;
-            tmpDirInSandbox = tmpDir;
             initTmpDir();
             goto fallback;
         } else if (res != 0)
@@ -2489,6 +2481,14 @@ void DerivationGoal::startBuilder()
 
 
 void DerivationGoal::initTmpDir() {
+    /* In a sandbox, for determinism, always use the same temporary
+       directory. */
+#if __linux__
+    tmpDirInSandbox = useChroot ? settings.sandboxBuildDir : tmpDir;
+#else
+    tmpDirInSandbox = tmpDir;
+#endif
+
     /* In non-structured mode, add all bindings specified in the
        derivation via the environment, except those listed in the
        passAsFile attribute. Those are passed as file names pointing
