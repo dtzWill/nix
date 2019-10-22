@@ -354,7 +354,7 @@ public:
     Setting<Paths> pluginFiles{this, {}, "plugin-files",
         "Plugins to dynamically load at nix initialization time."};
 
-    Setting<Strings> experimentalFeatures{this, {}, "experimental-features",
+    Setting<Strings> experimentalFeatures{this, {"nix-command"}, "experimental-features",
         "Experimental Nix features to enable."};
 
     void requireExperimentalFeature(const std::string & name);
