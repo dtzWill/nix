@@ -111,12 +111,7 @@ string printHashType(HashType ht);
 
 union Ctx;
 
-struct AbstractHashSink : virtual Sink
-{
-    virtual HashResult finish() = 0;
-};
-
-class HashSink : public BufferedSink, public AbstractHashSink
+class HashSink : public BufferedSink
 {
 private:
     HashType ht;
@@ -127,8 +122,8 @@ public:
     HashSink(HashType ht);
     HashSink(const HashSink & h);
     ~HashSink();
-    void write(const unsigned char * data, size_t len) override;
-    HashResult finish() override;
+    void write(const unsigned char * data, size_t len);
+    HashResult finish();
     HashResult currentHash();
 };
 

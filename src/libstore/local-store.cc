@@ -5,7 +5,6 @@
 #include "worker-protocol.hh"
 #include "derivations.hh"
 #include "nar-info.hh"
-#include "references.hh"
 
 #include <iostream>
 #include <algorithm>
@@ -1011,21 +1010,17 @@ void LocalStore::addToStore(const ValidPathInfo & info, Source & source,
 
             /* While restoring the path from the NAR, compute the hash
                of the NAR. */
-            std::unique_ptr<AbstractHashSink> hashSink;
-            if (info.ca == "")
-                hashSink = std::make_unique<HashSink>(htSHA256);
-            else
-                hashSink = std::make_unique<HashModuloSink>(htSHA256, storePathToHash(info.path));
+            HashSink hashSink(htSHA256);
 
             LambdaSource wrapperSource([&](unsigned char * data, size_t len) -> size_t {
                 size_t n = source.read(data, len);
-                (*hashSink)(data, n);
+                hashSink(data, n);
                 return n;
             });
 
             restorePath(realPath, wrapperSource);
 
-            auto hashResult = hashSink->finish();
+            auto hashResult = hashSink.finish();
 
             if (hashResult.first != info.narHash)
                 throw Error("hash mismatch importing path '%s';\n  wanted: %s\n  got:    %s",
@@ -1247,15 +1242,7 @@ bool LocalStore::verifyStore(bool checkContents, RepairFlag repair)
 
                 /* Check the content hash (optionally - slow). */
                 printMsg(lvlTalkative, format("checking contents of '%1%'") % i);
-
-                std::unique_ptr<AbstractHashSink> hashSink;
-                if (info->ca == "")
-                    hashSink = std::make_unique<HashSink>(info->narHash.type);
-                else
-                    hashSink = std::make_unique<HashModuloSink>(info->narHash.type, storePathToHash(info->path));
-
-                dumpPath(toRealPath(i), *hashSink);
-                auto current = hashSink->finish();
+                HashResult current = hashPath(info->narHash.type, toRealPath(i));
 
                 if (info->narHash != nullHash && info->narHash != current.first) {
                     printError(format("path '%1%' was modified! "
