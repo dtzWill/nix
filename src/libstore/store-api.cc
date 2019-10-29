@@ -318,10 +318,10 @@ bool Store::isValidPathUncached(const Path & path)
 
 ref<const ValidPathInfo> Store::queryPathInfo(const Path & storePath)
 {
-    std::promise<ref<ValidPathInfo>> promise;
+    std::promise<ref<const ValidPathInfo>> promise;
 
     queryPathInfo(storePath,
-        {[&](std::future<ref<ValidPathInfo>> result) {
+        {[&](std::future<ref<const ValidPathInfo>> result) {
             try {
                 promise.set_value(result.get());
             } catch (...) {
@@ -334,7 +334,7 @@ ref<const ValidPathInfo> Store::queryPathInfo(const Path & storePath)
 
 
 void Store::queryPathInfo(const Path & storePath,
-    Callback<ref<ValidPathInfo>> callback) noexcept
+    Callback<ref<const ValidPathInfo>> callback) noexcept
 {
     std::string hashPart;
 
@@ -349,7 +349,7 @@ void Store::queryPathInfo(const Path & storePath,
                 stats.narInfoReadAverted++;
                 if (!*res)
                     throw InvalidPath(format("path '%s' is not valid") % storePath);
-                return callback(ref<ValidPathInfo>(*res));
+                return callback(ref<const ValidPathInfo>(*res));
             }
         }
 
@@ -365,7 +365,7 @@ void Store::queryPathInfo(const Path & storePath,
                         (res.second->path != storePath && storePathToName(storePath) != ""))
                         throw InvalidPath(format("path '%s' is not valid") % storePath);
                 }
-                return callback(ref<ValidPathInfo>(res.second));
+                return callback(ref<const ValidPathInfo>(res.second));
             }
         }
 
@@ -374,7 +374,7 @@ void Store::queryPathInfo(const Path & storePath,
     auto callbackPtr = std::make_shared<decltype(callback)>(std::move(callback));
 
     queryPathInfoUncached(storePath,
-        {[this, storePath, hashPart, callbackPtr](std::future<std::shared_ptr<ValidPathInfo>> fut) {
+        {[this, storePath, hashPart, callbackPtr](std::future<std::shared_ptr<const ValidPathInfo>> fut) {
 
             try {
                 auto info = fut.get();
@@ -394,7 +394,7 @@ void Store::queryPathInfo(const Path & storePath,
                     throw InvalidPath("path '%s' is not valid", storePath);
                 }
 
-                (*callbackPtr)(ref<ValidPathInfo>(info));
+                (*callbackPtr)(ref<const ValidPathInfo>(info));
             } catch (...) { callbackPtr->rethrow(); }
         }});
 }
@@ -416,7 +416,7 @@ PathSet Store::queryValidPaths(const PathSet & paths, SubstituteFlag maybeSubsti
 
     auto doQuery = [&](const Path & path ) {
         checkInterrupt();
-        queryPathInfo(path, {[path, &state_, &wakeup](std::future<ref<ValidPathInfo>> fut) {
+        queryPathInfo(path, {[path, &state_, &wakeup](std::future<ref<const ValidPathInfo>> fut) {
             auto state(state_.lock());
             try {
                 auto info = fut.get();
