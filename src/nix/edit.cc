@@ -36,13 +36,11 @@ struct CmdEdit : InstallableCommand
 
         auto v = installable->toValue(*state);
 
-        std::string filename;
-        int lineno;
-        std::tie(filename, lineno) = findDerivationFilename(*state, *v, installable->what());
+        Pos pos = findDerivationFilename(*state, *v, installable->what());
 
         stopProgressBar();
 
-        auto args = editorFor(filename, lineno);
+        auto args = editorFor(pos);
 
         execvp(args.front().c_str(), stringsToCharPtrs(args).data());
 

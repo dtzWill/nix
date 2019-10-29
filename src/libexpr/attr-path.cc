@@ -93,7 +93,7 @@ Value * findAlongAttrPath(EvalState & state, const string & attrPath,
 }
 
 
-std::tuple<std::string, int> findDerivationFilename(EvalState & state, Value & v, std::string what)
+Pos findDerivationFilename(EvalState & state, Value & v, std::string what)
 {
     Value * v2;
     try {
@@ -103,6 +103,8 @@ std::tuple<std::string, int> findDerivationFilename(EvalState & state, Value & v
         throw Error("package '%s' has no source location information", what);
     }
 
+    // FIXME: is it possible to extract the Pos object instead of doing this
+    //        toString + parsing?
     auto pos = state.forceString(*v2);
 
     auto colon = pos.rfind(':');
@@ -110,14 +112,16 @@ std::tuple<std::string, int> findDerivationFilename(EvalState & state, Value & v
         throw Error("cannot parse meta.position attribute '%s'", pos);
 
     std::string filename(pos, 0, colon);
-    int lineno;
+    unsigned int lineno;
     try {
         lineno = std::stoi(std::string(pos, colon + 1));
     } catch (std::invalid_argument & e) {
         throw Error("cannot parse line number '%s'", pos);
     }
 
-    return std::make_tuple(filename, lineno);
+    Symbol file = state.symbols.create(filename);
+
+    return { file, lineno, 0 };
 }
 
 

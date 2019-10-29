@@ -472,20 +472,21 @@ bool NixRepl::processLine(string line)
         Value v;
         evalString(arg, v);
 
-        std::string filename;
-        int lineno = 0;
+        Pos pos;
 
         if (v.type == tPath || v.type == tString) {
             PathSet context;
-            filename = state.coerceToString(noPos, v, context);
-            lineno = 0;
+            auto filename = state.coerceToString(noPos, v, context);
+            pos.file = state.symbols.create(filename);
+        } else if (v.type == tLambda) {
+            pos = v.lambda.fun->pos;
         } else {
             // assume it's a derivation
-            std::tie(filename, lineno) = findDerivationFilename(state, v, arg);
+            pos = findDerivationFilename(state, v, arg);
         }
 
         // Open in EDITOR
-        auto args = editorFor(filename, lineno);
+        auto args = editorFor(pos);
         auto editor = args.front();
         args.pop_front();
         runProgram(editor, args);
