@@ -3288,8 +3288,7 @@ void DerivationGoal::registerOutputs()
             i.second.parseHashInfo(recursive, h);
 
             if (!recursive) {
-                /* The output path should be a regular file without
-                   execute permission. */
+                /* The output path should be a regular file without execute permission. */
                 if (!S_ISREG(st.st_mode) || (st.st_mode & S_IXUSR) != 0)
                     throw BuildError(
                         format("output path '%1%' should be a non-executable regular file") % path);
@@ -3367,8 +3366,7 @@ void DerivationGoal::registerOutputs()
                         % drvPath % path);
             }
 
-            /* Since we verified the build, it's now ultimately
-               trusted. */
+            /* Since we verified the build, it's now ultimately trusted. */
             if (!info.ultimate) {
                 info.ultimate = true;
                 worker.store.signPathInfo(info);
@@ -3378,8 +3376,7 @@ void DerivationGoal::registerOutputs()
             continue;
         }
 
-        /* For debugging, print out the referenced and unreferenced
-           paths. */
+        /* For debugging, print out the referenced and unreferenced paths. */
         for (auto & i : inputPaths) {
             PathSet::iterator j = references.find(i);
             if (j == references.end())
@@ -3437,8 +3434,7 @@ void DerivationGoal::registerOutputs()
             }
     }
 
-    /* If this is the first round of several, then move the output out
-       of the way. */
+    /* If this is the first round of several, then move the output out of the way. */
     if (nrRounds > 1 && curRound == 1 && curRound < nrRounds && keepPreviousRound) {
         for (auto & i : drv->outputs) {
             Path prev = i.second.path + checkSuffix;
