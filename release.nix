@@ -25,8 +25,6 @@ let
 
         buildInputs = tarballDeps ++ buildDeps;
 
-        configureFlags = "--enable-gc";
-
         postUnpack = ''
           (cd $sourceRoot && find . -type f) | cut -c3- > $sourceRoot/.dist-files
           cat $sourceRoot/.dist-files
@@ -129,7 +127,7 @@ let
       in
 
       runCommand "nix-binary-tarball-${version}"
-        { nativeBuildInputs = lib.optional (system != "aarch64-linux") shellcheck;
+        { #nativeBuildInputs = lib.optional (system != "aarch64-linux") shellcheck;
           meta.description = "Distribution-independent Nix bootstrap binaries for ${system}";
         }
         ''
