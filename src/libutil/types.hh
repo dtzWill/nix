@@ -120,9 +120,9 @@ private:
         using superClass::superClass;                   \
     private:                                            \
         void anchor() override;                         \
-    };
+    }
 
-MakeError(Error, BaseError)
+MakeError(Error, BaseError);
 
 class SysError : public Error
 {

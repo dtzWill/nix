@@ -1,4 +1,5 @@
 makefiles = \
+  mk/precompiled-headers.mk \
   local.mk \
   src/libutil/local.mk \
   src/libstore/local.mk \
@@ -15,8 +16,16 @@ makefiles = \
   tests/local.mk \
   tests/plugins/local.mk
 
-GLOBAL_CXXFLAGS += -g -Wall -include config.h
-
 -include Makefile.config
 
+OPTIMIZE = 1
+
+ifeq ($(OPTIMIZE), 1)
+  GLOBAL_CXXFLAGS += -O3
+else
+  GLOBAL_CXXFLAGS += -O0
+endif
+
 include mk/lib.mk
+
+GLOBAL_CXXFLAGS += -g -Wall -include config.h -std=c++17

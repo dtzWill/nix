@@ -23,8 +23,8 @@
 #include <chrono>
 #include <regex>
 #include <queue>
+#include <climits>
 
-#include <limits.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/types.h>
@@ -1533,7 +1533,7 @@ void replaceValidPath(const Path & storePath, const Path tmpPath)
 }
 
 
-MakeError(NotDeterministic, BuildError)
+MakeError(NotDeterministic, BuildError);
 void NotDeterministic::anchor() {}
 
 
