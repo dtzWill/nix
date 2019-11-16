@@ -38,4 +38,13 @@ struct CmdOptimiseStore : StoreCommand
     }
 };
 
+struct CmdOptimizeStore : CmdOptimiseStore
+{
+    std::string name() override
+    {
+        return "optimize-store";
+    }
+};
+
 static RegisterCommand r1(make_ref<CmdOptimiseStore>());
+static RegisterCommand r2(make_ref<CmdOptimizeStore>());
