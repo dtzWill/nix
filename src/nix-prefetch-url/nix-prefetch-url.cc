@@ -136,7 +136,7 @@ static int _main(int argc, char * * argv)
             if (attr == v.attrs->end())
                 printInfo("warning: this does not look like a fetchurl call");
             else
-                unpack = state->forceString(*attr->value) == "recursive";
+                unpack |= state->forceString(*attr->value) == "recursive";
 
             /* Extract the name. */
             if (name.empty()) {
