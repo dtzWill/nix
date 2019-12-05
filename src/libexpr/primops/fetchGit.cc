@@ -68,7 +68,7 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
                 return files.count(file);
             };
 
-            gitInfo.storePath = store->addToStore("source", uri, true, htSHA256, filter);
+            gitInfo.storePath = store->printStorePath(store->addToStore("source", uri, true, htSHA256, filter));
 
             return gitInfo;
         }
@@ -155,7 +155,7 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
 
         gitInfo.storePath = json["storePath"];
 
-        if (store->isValidPath(gitInfo.storePath)) {
+        if (store->isValidPath(store->parseStorePath(gitInfo.storePath))) {
             gitInfo.revCount = json["revCount"];
             return gitInfo;
         }
@@ -173,7 +173,7 @@ GitInfo exportGit(ref<Store> store, const std::string & uri,
 
     runProgram("tar", true, { "x", "-C", tmpDir }, tar);
 
-    gitInfo.storePath = store->addToStore(name, tmpDir);
+    gitInfo.storePath = store->printStorePath(store->addToStore(name, tmpDir));
 
     gitInfo.revCount = std::stoull(runProgram("git", true, { "-C", cacheDir, "rev-list", "--count", gitInfo.rev }));
 
