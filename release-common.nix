@@ -68,8 +68,8 @@ rec {
   });
 
   buildDeps =
-  [   curl
-      bzip2 xz brotli editline
+    [ curl
+      bzip2 xz brotli zlib editline
       openssl pkgconfig sqlite boehmgc
       boost
       nlohmann_json
