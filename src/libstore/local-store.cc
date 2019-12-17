@@ -849,7 +849,7 @@ PathSet LocalStore::querySubstitutablePaths(const PathSet & paths)
     for (auto & sub : getDefaultSubstituters()) {
         if (remaining.empty()) break;
         if (sub->storeDir != storeDir) continue;
-        if (!sub->wantMassQuery()) continue;
+        if (!sub->wantMassQuery) continue;
 
         auto valid = sub->queryValidPaths(remaining);
 
