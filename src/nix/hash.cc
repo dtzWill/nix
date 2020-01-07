@@ -26,13 +26,11 @@ struct CmdHash : Command
         mkFlag()
             .longName("type")
             .mkHashTypeFlag(&ht);
-        #if 0
         mkFlag()
             .longName("modulo")
             .description("compute hash modulo specified string")
             .labels({"modulus"})
             .dest(&modulus);
-        #endif
         expectArgs("paths", &paths);
     }
 
