@@ -1089,7 +1089,7 @@ void runProgram2(const RunOptions & options)
 
         if (options.searchPath) {
             // Prepend our utilities to PATH
-            auto unixPath = tokenizeString<Strings>(getEnv("PATH"), ":");
+            auto unixPath = tokenizeString<Strings>(getEnv("PATH").value_or(""), ":");
             unixPath.push_front(std::string(NIX_LIBEXEC_DIR) + "/nix");
             setenv("PATH", concatStringsSep(":", unixPath).c_str(), 1);
 
