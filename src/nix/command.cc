@@ -58,7 +58,7 @@ void StorePathsCommand::run(ref<Store> store)
     }
 
     else {
-        for (auto & p : toStorePaths(store, realiseMode, installables))
+        for (auto & p : toStorePaths(store, NoBuild, installables))
             storePaths.push_back(p);
 
         if (recursive) {

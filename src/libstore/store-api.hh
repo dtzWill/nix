@@ -307,8 +307,7 @@ public:
         const Hash & hash, const string & name) const;
 
     Path makeFixedOutputPath(bool recursive,
-        const Hash & hash, const string & name,
-        const PathSet & references = {}) const;
+        const Hash & hash, const string & name) const;
 
     Path makeTextPath(const string & name, const Hash & hash,
         const PathSet & references) const;
