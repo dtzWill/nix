@@ -52,11 +52,11 @@ static int _main(int argc, char ** argv)
         auto to = toMode ? openStore(remoteUri) : openStore();
         auto from = toMode ? openStore() : openStore(remoteUri);
 
-        StorePathSet storePaths2;
+        PathSet storePaths2;
         for (auto & path : storePaths)
             storePaths2.insert(from->followLinksToStorePath(path));
 
-        StorePathSet closure;
+        PathSet closure;
         from->computeFSClosure(storePaths2, closure, false, includeOutputs);
 
         copyPaths(from, to, closure, NoRepair, NoCheckSigs, useSubstitutes);

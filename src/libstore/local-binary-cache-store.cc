@@ -44,15 +44,15 @@ protected:
         }
     }
 
-    StorePathSet queryAllValidPaths() override
+    PathSet queryAllValidPaths() override
     {
-        StorePathSet paths;
+        PathSet paths;
 
         for (auto & entry : readDirectory(binaryCacheDir)) {
             if (entry.name.size() != 40 ||
                 !hasSuffix(entry.name, ".narinfo"))
                 continue;
-            paths.insert(parseStorePath(storeDir + "/" + entry.name.substr(0, entry.name.size() - 8)));
+            paths.insert(storeDir + "/" + entry.name.substr(0, entry.name.size() - 8));
         }
 
         return paths;

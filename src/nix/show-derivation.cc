@@ -46,9 +46,9 @@ struct CmdShowDerivation : InstallablesCommand
         auto drvPaths = toDerivations(store, installables, true);
 
         if (recursive) {
-            StorePathSet closure;
+            PathSet closure;
             store->computeFSClosure(drvPaths, closure);
-            drvPaths = std::move(closure);
+            drvPaths = closure;
         }
 
         {
@@ -56,19 +56,17 @@ struct CmdShowDerivation : InstallablesCommand
         JSONObject jsonRoot(std::cout, true);
 
         for (auto & drvPath : drvPaths) {
-            if (!drvPath.isDerivation()) continue;
+            if (!isDerivation(drvPath)) continue;
 
-            auto drvPathS = store->printStorePath(drvPath);
+            auto drvObj(jsonRoot.object(drvPath));
 
-            auto drvObj(jsonRoot.object(drvPathS));
-
-            auto drv = readDerivation(*store, drvPathS);
+            auto drv = readDerivation(drvPath);
 
             {
                 auto outputsObj(drvObj.object("outputs"));
                 for (auto & output : drv.outputs) {
                     auto outputObj(outputsObj.object(output.first));
-                    outputObj.attr("path", store->printStorePath(output.second.path));
+                    outputObj.attr("path", output.second.path);
                     if (output.second.hash != "") {
                         outputObj.attr("hashAlgo", output.second.hashAlgo);
                         outputObj.attr("hash", output.second.hash);
@@ -79,13 +77,13 @@ struct CmdShowDerivation : InstallablesCommand
             {
                 auto inputsList(drvObj.list("inputSrcs"));
                 for (auto & input : drv.inputSrcs)
-                    inputsList.elem(store->printStorePath(input));
+                    inputsList.elem(input);
             }
 
             {
                 auto inputDrvsObj(drvObj.object("inputDrvs"));
                 for (auto & input : drv.inputDrvs) {
-                    auto inputList(inputDrvsObj.list(store->printStorePath(input.first)));
+                    auto inputList(inputDrvsObj.list(input.first));
                     for (auto & outputId : input.second)
                         inputList.elem(outputId);
                 }

@@ -4,7 +4,6 @@
 namespace nix {
 
 NarInfo::NarInfo(const Store & store, const std::string & s, const std::string & whence)
-    : ValidPathInfo(StorePath::make((unsigned char *) "xxxxxxxxxxxxxxxxxxxx", "x")) // FIXME: hack
 {
     auto corrupt = [&]() {
         throw Error(format("NAR info file '%1%' is corrupt") % whence);
@@ -18,8 +17,6 @@ NarInfo::NarInfo(const Store & store, const std::string & s, const std::string &
             return Hash(); // never reached
         }
     };
-
-    bool havePath = false;
 
     size_t pos = 0;
     while (pos < s.size()) {
@@ -35,8 +32,8 @@ NarInfo::NarInfo(const Store & store, const std::string & s, const std::string &
         std::string value(s, colon + 2, eol - colon - 2);
 
         if (name == "StorePath") {
-            path = store.parseStorePath(value);
-            havePath = true;
+            if (!store.isStorePath(value)) corrupt();
+            path = value;
         }
         else if (name == "URL")
             url = value;
@@ -55,12 +52,18 @@ NarInfo::NarInfo(const Store & store, const std::string & s, const std::string &
         else if (name == "References") {
             auto refs = tokenizeString<Strings>(value, " ");
             if (!references.empty()) corrupt();
-            for (auto & r : refs)
-                references.insert(StorePath::fromBaseName(r));
+            for (auto & r : refs) {
+                auto r2 = store.storeDir + "/" + r;
+                if (!store.isStorePath(r2)) corrupt();
+                references.insert(r2);
+            }
         }
         else if (name == "Deriver") {
-            if (value != "unknown-deriver")
-                deriver = StorePath::fromBaseName(value);
+            if (value != "unknown-deriver") {
+                auto p = store.storeDir + "/" + value;
+                if (!store.isStorePath(p)) corrupt();
+                deriver = p;
+            }
         }
         else if (name == "System")
             system = value;
@@ -76,13 +79,13 @@ NarInfo::NarInfo(const Store & store, const std::string & s, const std::string &
 
     if (compression == "") compression = "bzip2";
 
-    if (!havePath || url.empty() || narSize == 0 || !narHash) corrupt();
+    if (path.empty() || url.empty() || narSize == 0 || !narHash) corrupt();
 }
 
-std::string NarInfo::to_string(const Store & store) const
+std::string NarInfo::to_string() const
 {
     std::string res;
-    res += "StorePath: " + store.printStorePath(path) + "\n";
+    res += "StorePath: " + path + "\n";
     res += "URL: " + url + "\n";
     assert(compression != "");
     res += "Compression: " + compression + "\n";
@@ -95,8 +98,8 @@ std::string NarInfo::to_string(const Store & store) const
 
     res += "References: " + concatStringsSep(" ", shortRefs()) + "\n";
 
-    if (deriver)
-        res += "Deriver: " + std::string(deriver->to_string()) + "\n";
+    if (!deriver.empty())
+        res += "Deriver: " + baseNameOf(deriver) + "\n";
 
     if (!system.empty())
         res += "System: " + system + "\n";

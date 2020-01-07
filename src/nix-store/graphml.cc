@@ -11,7 +11,7 @@ using std::cout;
 namespace nix {
 
 
-static inline std::string_view xmlQuote(std::string_view s)
+static inline const string & xmlQuote(const string & s)
 {
     // Luckily, store paths shouldn't contain any character that needs to be
     // quoted.
@@ -19,13 +19,14 @@ static inline std::string_view xmlQuote(std::string_view s)
 }
 
 
-static string symbolicName(const std::string & p)
+static string symbolicName(const string & path)
 {
+    string p = baseNameOf(path);
     return string(p, p.find('-') + 1);
 }
 
 
-static string makeEdge(std::string_view src, std::string_view dst)
+static string makeEdge(const string & src, const string & dst)
 {
     return fmt("  <edge source=\"%1%\" target=\"%2%\"/>\n",
         xmlQuote(src), xmlQuote(dst));
@@ -40,18 +41,18 @@ static string makeNode(const ValidPathInfo & info)
         "    <data key=\"name\">%3%</data>\n"
         "    <data key=\"ty\">%4%</data>\n"
         "  </node>\n",
-        info.path.to_string(),
+        info.path,
         info.narSize,
-        symbolicName(std::string(info.path.name())),
-        (info.path.isDerivation() ? "derivation" : "output-path"));
+        symbolicName(info.path),
+        (isDerivation(info.path) ? "derivation" : "output-path"));
 }
 
 
-void printGraphML(ref<Store> store, StorePathSet && roots)
+void printGraphML(ref<Store> store, const PathSet & roots)
 {
-    StorePathSet workList(std::move(roots));
-    StorePathSet doneSet;
-    std::pair<StorePathSet::iterator, bool> ret;
+    PathSet workList(roots);
+    PathSet doneSet;
+    std::pair<PathSet::iterator,bool> ret;
 
     cout << "<?xml version='1.0' encoding='UTF-8'?>\n"
          << "<graphml xmlns='http://graphml.graphdrawing.org/xmlns'\n"
@@ -64,18 +65,19 @@ void printGraphML(ref<Store> store, StorePathSet && roots)
          << "<graph id='G' edgedefault='directed'>\n";
 
     while (!workList.empty()) {
-        auto path = std::move(workList.extract(workList.begin()).value());
+        Path path = *(workList.begin());
+        workList.erase(path);
 
-        ret = doneSet.insert(path.clone());
+        ret = doneSet.insert(path);
         if (ret.second == false) continue;
 
-        auto info = store->queryPathInfo(path);
-        cout << makeNode(*info);
+        ValidPathInfo info = *(store->queryPathInfo(path));
+        cout << makeNode(info);
 
-        for (auto & p : info->references) {
+        for (auto & p : store->queryPathInfo(path)->references) {
             if (p != path) {
-                workList.insert(p.clone());
-                cout << makeEdge(path.to_string(), p.to_string());
+                workList.insert(p);
+                cout << makeEdge(path, p);
             }
         }
 

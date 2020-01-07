@@ -80,14 +80,14 @@ struct CmdCopy : StorePathsCommand
         return srcUri.empty() ? StoreCommand::createStore() : openStore(srcUri);
     }
 
-    void run(ref<Store> srcStore, StorePaths storePaths) override
+    void run(ref<Store> srcStore, Paths storePaths) override
     {
         if (srcUri.empty() && dstUri.empty())
             throw UsageError("you must pass '--from' and/or '--to'");
 
         ref<Store> dstStore = dstUri.empty() ? openStore() : openStore(dstUri);
 
-        copyPaths(srcStore, dstStore, storePathsToSet(storePaths),
+        copyPaths(srcStore, dstStore, PathSet(storePaths.begin(), storePaths.end()),
             NoRepair, checkSigs, substitute);
     }
 };

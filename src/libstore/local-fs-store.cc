@@ -21,7 +21,7 @@ struct LocalStoreAccessor : public FSAccessor
     Path toRealPath(const Path & path)
     {
         Path storePath = store->toStorePath(path);
-        if (!store->isValidPath(store->parseStorePath(storePath)))
+        if (!store->isValidPath(storePath))
             throw InvalidPath(format("path '%1%' is not a valid store path") % storePath);
         return store->getRealStoreDir() + std::string(path, store->storeDir.size());
     }
@@ -77,32 +77,34 @@ ref<FSAccessor> LocalFSStore::getFSAccessor()
             std::dynamic_pointer_cast<LocalFSStore>(shared_from_this())));
 }
 
-void LocalFSStore::narFromPath(const StorePath & path, Sink & sink)
+void LocalFSStore::narFromPath(const Path & path, Sink & sink)
 {
     if (!isValidPath(path))
-        throw Error("path '%s' is not valid", printStorePath(path));
-    dumpPath(getRealStoreDir() + std::string(printStorePath(path), storeDir.size()), sink);
+        throw Error(format("path '%s' is not valid") % path);
+    dumpPath(getRealStoreDir() + std::string(path, storeDir.size()), sink);
 }
 
 const string LocalFSStore::drvsLogDir = "drvs";
 
 
 
-std::shared_ptr<std::string> LocalFSStore::getBuildLog(const StorePath & path_)
+std::shared_ptr<std::string> LocalFSStore::getBuildLog(const Path & path_)
 {
-    auto path = path_.clone();
+    auto path(path_);
 
-    if (!path.isDerivation()) {
+    assertStorePath(path);
+
+
+    if (!isDerivation(path)) {
         try {
-            auto info = queryPathInfo(path);
-            if (!info->deriver) return nullptr;
-            path = info->deriver->clone();
+            path = queryPathInfo(path)->deriver;
         } catch (InvalidPath &) {
             return nullptr;
         }
+        if (path == "") return nullptr;
     }
 
-    auto baseName = std::string(baseNameOf(printStorePath(path)));
+    string baseName = baseNameOf(path);
 
     for (int j = 0; j < 2; j++) {
 

@@ -6,13 +6,13 @@ namespace nix {
 
 class ParsedDerivation
 {
-    StorePath drvPath;
+    Path drvPath;
     BasicDerivation & drv;
     std::optional<nlohmann::json> structuredAttrs;
 
 public:
 
-    ParsedDerivation(StorePath && drvPath, BasicDerivation & drv);
+    ParsedDerivation(const Path & drvPath, BasicDerivation & drv);
 
     const std::optional<nlohmann::json> & getStructuredAttrs() const
     {

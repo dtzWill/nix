@@ -196,22 +196,22 @@ Path dirOf(const Path & path)
 }
 
 
-std::string_view baseNameOf(std::string_view path)
+string baseNameOf(const Path & path)
 {
     if (path.empty())
         return "";
 
-    auto last = path.size() - 1;
+    Path::size_type last = path.length() - 1;
     if (path[last] == '/' && last > 0)
         last -= 1;
 
-    auto pos = path.rfind('/', last);
+    Path::size_type pos = path.rfind('/', last);
     if (pos == string::npos)
         pos = 0;
     else
         pos += 1;
 
-    return path.substr(pos, last - pos + 1);
+    return string(path, pos, last - pos + 1);
 }
 
 
@@ -1310,10 +1310,9 @@ bool hasPrefix(const string & s, const string & prefix)
 }
 
 
-bool hasSuffix(std::string_view s, std::string_view suffix)
+bool hasSuffix(const string & s, const string & suffix)
 {
-    return s.size() >= suffix.size()
-        && s.substr(s.size() - suffix.size()) == suffix;
+    return s.size() >= suffix.size() && string(s, s.size() - suffix.size()) == suffix;
 }
 
 

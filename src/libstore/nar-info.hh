@@ -14,12 +14,11 @@ struct NarInfo : ValidPathInfo
     uint64_t fileSize = 0;
     std::string system;
 
-    NarInfo() = delete;
-    NarInfo(StorePath && path) : ValidPathInfo(std::move(path)) { }
+    NarInfo() { }
     NarInfo(const ValidPathInfo & info) : ValidPathInfo(info) { }
     NarInfo(const Store & store, const std::string & s, const std::string & whence);
 
-    std::string to_string(const Store & store) const;
+    std::string to_string() const;
 };
 
 }

@@ -58,9 +58,13 @@ struct CmdUpgradeNix : MixDryRun, StoreCommand
 
         printInfo("upgrading Nix in profile '%s'", profileDir);
 
-        auto storePath = getLatestNix(store);
+        Path storePath;
+        {
+            Activity act(*logger, lvlInfo, actUnknown, "querying latest Nix version");
+            storePath = getLatestNix(store);
+        }
 
-        auto version = DrvName(storePath.name()).version;
+        auto version = DrvName(storePathToName(storePath)).version;
 
         if (dryRun) {
             stopProgressBar();
@@ -69,13 +73,13 @@ struct CmdUpgradeNix : MixDryRun, StoreCommand
         }
 
         {
-            Activity act(*logger, lvlInfo, actUnknown, fmt("downloading '%s'...", store->printStorePath(storePath)));
+            Activity act(*logger, lvlInfo, actUnknown, fmt("downloading '%s'...", storePath));
             store->ensurePath(storePath);
         }
 
         {
-            Activity act(*logger, lvlInfo, actUnknown, fmt("verifying that '%s' works...", store->printStorePath(storePath)));
-            auto program = store->printStorePath(storePath) + "/bin/nix-env";
+            Activity act(*logger, lvlInfo, actUnknown, fmt("verifying that '%s' works...", storePath));
+            auto program = storePath + "/bin/nix-env";
             auto s = runProgram(program, false, {"--version"});
             if (s.find("Nix") == std::string::npos)
                 throw Error("could not verify that '%s' works", program);
@@ -84,10 +88,9 @@ struct CmdUpgradeNix : MixDryRun, StoreCommand
         stopProgressBar();
 
         {
-            Activity act(*logger, lvlInfo, actUnknown,
-                fmt("installing '%s' into profile '%s'...", store->printStorePath(storePath), profileDir));
+            Activity act(*logger, lvlInfo, actUnknown, fmt("installing '%s' into profile '%s'...", storePath, profileDir));
             runProgram(settings.nixBinDir + "/nix-env", false,
-                {"--profile", profileDir, "-i", store->printStorePath(storePath), "--no-sandbox"});
+                {"--profile", profileDir, "-i", storePath, "--no-sandbox"});
         }
 
         printError(ANSI_GREEN "upgrade to version %s done" ANSI_NORMAL, version);
@@ -126,17 +129,15 @@ struct CmdUpgradeNix : MixDryRun, StoreCommand
             !hasSuffix(userEnv, "user-environment"))
             throw Error("directory '%s' does not appear to be part of a Nix profile", where);
 
-        if (!store->isValidPath(store->parseStorePath(userEnv)))
+        if (!store->isValidPath(userEnv))
             throw Error("directory '%s' is not in the Nix store", userEnv);
 
         return profileDir;
     }
 
     /* Return the store path of the latest stable Nix. */
-    StorePath getLatestNix(ref<Store> store)
+    Path getLatestNix(ref<Store> store)
     {
-        Activity act(*logger, lvlInfo, actUnknown, "querying latest Nix version");
-
         // FIXME: use nixos.org?
         auto req = DownloadRequest(storePathsUrl);
         auto res = getDownloader()->download(req);
@@ -147,7 +148,7 @@ struct CmdUpgradeNix : MixDryRun, StoreCommand
         Bindings & bindings(*state->allocBindings(0));
         auto v2 = findAlongAttrPath(*state, settings.thisSystem, bindings, *v);
 
-        return store->parseStorePath(state->forceString(*v2));
+        return state->forceString(*v2);
     }
 };
 

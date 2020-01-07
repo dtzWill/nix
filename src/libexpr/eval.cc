@@ -43,19 +43,6 @@ static char * dupString(const char * s)
 }
 
 
-static char * dupStringWithLen(const char * s, size_t size)
-{
-    char * t;
-#if HAVE_BOEHMGC
-    t = GC_STRNDUP(s, size);
-#else
-    t = strndup(s, size);
-#endif
-    if (!t) throw std::bad_alloc();
-    return t;
-}
-
-
 static void printValue(std::ostream & str, std::set<const Value *> & active, const Value & v)
 {
     checkInterrupt();
@@ -344,10 +331,10 @@ EvalState::EvalState(const Strings & _searchPath, ref<Store> store)
             auto path = r.second;
 
             if (store->isInStore(r.second)) {
-                StorePathSet closure;
-                store->computeFSClosure(store->parseStorePath(store->toStorePath(r.second)), closure);
+                PathSet closure;
+                store->computeFSClosure(store->toStorePath(r.second), closure);
                 for (auto & path : closure)
-                    allowedPaths->insert(store->printStorePath(path));
+                    allowedPaths->insert(path);
             } else
                 allowedPaths->insert(r.second);
         }
@@ -564,11 +551,9 @@ void mkString(Value & v, const char * s)
 }
 
 
-Value & mkString(Value & v, std::string_view s, const PathSet & context)
+Value & mkString(Value & v, const string & s, const PathSet & context)
 {
-    v.type = tString;
-    v.string.s = dupStringWithLen(s.data(), s.size());
-    v.string.context = 0;
+    mkString(v, s.c_str());
     if (!context.empty()) {
         size_t n = 0;
         v.string.context = (const char * *)
@@ -1659,16 +1644,15 @@ string EvalState::copyPathToStore(PathSet & context, const Path & path)
         throwEvalError("file names are not allowed to end in '%1%'", drvExtension);
 
     Path dstPath;
-    auto i = srcToStore.find(path);
-    if (i != srcToStore.end())
-        dstPath = store->printStorePath(i->second);
+    if (srcToStore[path] != "")
+        dstPath = srcToStore[path];
     else {
-        auto p = settings.readOnlyMode
-            ? store->computeStorePathForPath(std::string(baseNameOf(path)), checkSourcePath(path)).first
-            : store->addToStore(std::string(baseNameOf(path)), checkSourcePath(path), true, htSHA256, defaultPathFilter, repair);
-        dstPath = store->printStorePath(p);
-        srcToStore.insert_or_assign(path, std::move(p));
-        printMsg(lvlChatty, "copied source '%1%' -> '%2%'", path, dstPath);
+        dstPath = settings.readOnlyMode
+            ? store->computeStorePathForPath(baseNameOf(path), checkSourcePath(path)).first
+            : store->addToStore(baseNameOf(path), checkSourcePath(path), true, htSHA256, defaultPathFilter, repair);
+        srcToStore[path] = dstPath;
+        printMsg(lvlChatty, format("copied source '%1%' -> '%2%'")
+            % path % dstPath);
     }
 
     context.insert(dstPath);

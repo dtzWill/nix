@@ -24,9 +24,9 @@ struct HashAndWriteSink : Sink
     }
 };
 
-void Store::exportPaths(const StorePathSet & paths, Sink & sink)
+void Store::exportPaths(const Paths & paths, Sink & sink)
 {
-    auto sorted = topoSortPaths(paths);
+    Paths sorted = topoSortPaths(PathSet(paths.begin(), paths.end()));
     std::reverse(sorted.begin(), sorted.end());
 
     std::string doneLabel("paths exported");
@@ -42,7 +42,7 @@ void Store::exportPaths(const StorePathSet & paths, Sink & sink)
     sink << 0;
 }
 
-void Store::exportPath(const StorePath & path, Sink & sink)
+void Store::exportPath(const Path & path, Sink & sink)
 {
     auto info = queryPathInfo(path);
 
@@ -55,21 +55,15 @@ void Store::exportPath(const StorePath & path, Sink & sink)
        Don't complain if the stored hash is zero (unknown). */
     Hash hash = hashAndWriteSink.currentHash();
     if (hash != info->narHash && info->narHash != Hash(info->narHash.type))
-        throw Error("hash of path '%s' has changed from '%s' to '%s'!",
-            printStorePath(path), info->narHash.to_string(), hash.to_string());
+        throw Error(format("hash of path '%1%' has changed from '%2%' to '%3%'!") % path
+            % info->narHash.to_string() % hash.to_string());
 
-    hashAndWriteSink
-        << exportMagic
-        << printStorePath(path);
-    writeStorePaths(*this, hashAndWriteSink, info->references);
-    hashAndWriteSink
-        << (info->deriver ? printStorePath(*info->deriver) : "")
-        << 0;
+    hashAndWriteSink << exportMagic << path << info->references << info->deriver << 0;
 }
 
-StorePaths Store::importPaths(Source & source, std::shared_ptr<FSAccessor> accessor, CheckSigsFlag checkSigs)
+Paths Store::importPaths(Source & source, std::shared_ptr<FSAccessor> accessor, CheckSigsFlag checkSigs)
 {
-    StorePaths res;
+    Paths res;
     while (true) {
         auto n = readNum<uint64_t>(source);
         if (n == 0) break;
@@ -83,15 +77,16 @@ StorePaths Store::importPaths(Source & source, std::shared_ptr<FSAccessor> acces
         if (magic != exportMagic)
             throw Error("Nix archive cannot be imported; wrong format");
 
-        ValidPathInfo info(parseStorePath(readString(source)));
+        ValidPathInfo info;
+
+        info.path = readStorePath(*this, source);
 
         //Activity act(*logger, lvlInfo, format("importing path '%s'") % info.path);
 
-        info.references = readStorePaths<StorePathSet>(*this, source);
+        info.references = readStorePaths<PathSet>(*this, source);
 
-        auto deriver = readString(source);
-        if (deriver != "")
-            info.deriver = parseStorePath(deriver);
+        info.deriver = readString(source);
+        if (info.deriver != "") assertStorePath(info.deriver);
 
         info.narHash = hashString(htSHA256, *tee.source.data);
         info.narSize = tee.source.data->size();
@@ -102,7 +97,7 @@ StorePaths Store::importPaths(Source & source, std::shared_ptr<FSAccessor> acces
 
         addToStore(info, tee.source.data, NoRepair, checkSigs, accessor);
 
-        res.push_back(info.path.clone());
+        res.push_back(info.path);
     }
 
     return res;

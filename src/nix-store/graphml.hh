@@ -1,9 +1,11 @@
 #pragma once
 
-#include "store-api.hh"
+#include "types.hh"
 
 namespace nix {
 
-void printGraphML(ref<Store> store, StorePathSet && roots);
+class Store;
+
+void printGraphML(ref<Store> store, const PathSet & roots);
 
 }

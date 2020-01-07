@@ -260,8 +260,14 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     switch (op) {
 
     case wopIsValidPath: {
-        auto path = store->parseStorePath(readString(from));
+        /* 'readStorePath' could raise an error leading to the connection
+           being closed.  To be able to recover from an invalid path error,
+           call 'startWork' early, and do 'assertStorePath' afterwards so
+           that the 'Error' exception handler doesn't close the
+           connection.  */
+        Path path = readString(from);
         logger->startWork();
+        store->assertStorePath(path);
         bool result = store->isValidPath(path);
         logger->stopWork();
         to << result;
@@ -269,36 +275,34 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     }
 
     case wopQueryValidPaths: {
-        auto paths = readStorePaths<StorePathSet>(*store, from);
+        PathSet paths = readStorePaths<PathSet>(*store, from);
         logger->startWork();
-        auto res = store->queryValidPaths(paths);
+        PathSet res = store->queryValidPaths(paths);
         logger->stopWork();
-        writeStorePaths(*store, to, res);
+        to << res;
         break;
     }
 
     case wopHasSubstitutes: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = readStorePath(*store, from);
         logger->startWork();
-        StorePathSet paths; // FIXME
-        paths.insert(path.clone());
-        auto res = store->querySubstitutablePaths(paths);
+        PathSet res = store->querySubstitutablePaths({path});
         logger->stopWork();
-        to << (res.count(path) != 0);
+        to << (res.find(path) != res.end());
         break;
     }
 
     case wopQuerySubstitutablePaths: {
-        auto paths = readStorePaths<StorePathSet>(*store, from);
+        PathSet paths = readStorePaths<PathSet>(*store, from);
         logger->startWork();
-        auto res = store->querySubstitutablePaths(paths);
+        PathSet res = store->querySubstitutablePaths(paths);
         logger->stopWork();
-        writeStorePaths(*store, to, res);
+        to << res;
         break;
     }
 
     case wopQueryPathHash: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = readStorePath(*store, from);
         logger->startWork();
         auto hash = store->queryPathInfo(path)->narHash;
         logger->stopWork();
@@ -310,24 +314,23 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     case wopQueryReferrers:
     case wopQueryValidDerivers:
     case wopQueryDerivationOutputs: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = readStorePath(*store, from);
         logger->startWork();
-        StorePathSet paths;
+        PathSet paths;
         if (op == wopQueryReferences)
-            for (auto & i : store->queryPathInfo(path)->references)
-                paths.insert(i.clone());
+            paths = store->queryPathInfo(path)->references;
         else if (op == wopQueryReferrers)
             store->queryReferrers(path, paths);
         else if (op == wopQueryValidDerivers)
             paths = store->queryValidDerivers(path);
         else paths = store->queryDerivationOutputs(path);
         logger->stopWork();
-        writeStorePaths(*store, to, paths);
+        to << paths;
         break;
     }
 
     case wopQueryDerivationOutputNames: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = readStorePath(*store, from);
         logger->startWork();
         StringSet names;
         names = store->queryDerivationOutputNames(path);
@@ -337,20 +340,20 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     }
 
     case wopQueryDeriver: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = readStorePath(*store, from);
         logger->startWork();
-        auto info = store->queryPathInfo(path);
+        auto deriver = store->queryPathInfo(path)->deriver;
         logger->stopWork();
-        to << (info->deriver ? store->printStorePath(*info->deriver) : "");
+        to << deriver;
         break;
     }
 
     case wopQueryPathFromHashPart: {
-        auto hashPart = readString(from);
+        string hashPart = readString(from);
         logger->startWork();
-        auto path = store->queryPathFromHashPart(hashPart);
+        Path path = store->queryPathFromHashPart(hashPart);
         logger->stopWork();
-        to << (path ? store->printStorePath(*path) : "");
+        to << path;
         break;
     }
 
@@ -380,26 +383,26 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
         logger->startWork();
         if (!savedRegular.regular) throw Error("regular file expected");
 
-        auto path = store->addToStoreFromDump(recursive ? *savedNAR.data : savedRegular.s, baseName, recursive, hashAlgo);
+        Path path = store->addToStoreFromDump(recursive ? *savedNAR.data : savedRegular.s, baseName, recursive, hashAlgo);
         logger->stopWork();
 
-        to << store->printStorePath(path);
+        to << path;
         break;
     }
 
     case wopAddTextToStore: {
         string suffix = readString(from);
         string s = readString(from);
-        auto refs = readStorePaths<StorePathSet>(*store, from);
+        PathSet refs = readStorePaths<PathSet>(*store, from);
         logger->startWork();
-        auto path = store->addTextToStore(suffix, s, refs, NoRepair);
+        Path path = store->addTextToStore(suffix, s, refs, NoRepair);
         logger->stopWork();
-        to << store->printStorePath(path);
+        to << path;
         break;
     }
 
     case wopExportPath: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = readStorePath(*store, from);
         readInt(from); // obsolete
         logger->startWork();
         TunnelSink sink(to);
@@ -412,19 +415,15 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     case wopImportPaths: {
         logger->startWork();
         TunnelSource source(from, to);
-        auto paths = store->importPaths(source, nullptr,
+        Paths paths = store->importPaths(source, nullptr,
             trusted ? NoCheckSigs : CheckSigs);
         logger->stopWork();
-        Strings paths2;
-        for (auto & i : paths) paths2.push_back(store->printStorePath(i));
-        to << paths2;
+        to << paths;
         break;
     }
 
     case wopBuildPaths: {
-        std::vector<StorePathWithOutputs> drvs;
-        for (auto & s : readStrings<Strings>(from))
-            drvs.push_back(store->parseDrvPathWithOutputs(s));
+        PathSet drvs = readStorePaths<PathSet>(*store, from);
         BuildMode mode = bmNormal;
         if (GET_PROTOCOL_MINOR(clientVersion) >= 15) {
             mode = (BuildMode) readInt(from);
@@ -442,7 +441,7 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     }
 
     case wopBuildDerivation: {
-        auto drvPath = store->parseStorePath(readString(from));
+        Path drvPath = readStorePath(*store, from);
         BasicDerivation drv;
         readDerivation(from, *store, drv);
         BuildMode buildMode = (BuildMode) readInt(from);
@@ -456,7 +455,7 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     }
 
     case wopEnsurePath: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = readStorePath(*store, from);
         logger->startWork();
         store->ensurePath(path);
         logger->stopWork();
@@ -465,7 +464,7 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     }
 
     case wopAddTempRoot: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = readStorePath(*store, from);
         logger->startWork();
         store->addTempRoot(path);
         logger->stopWork();
@@ -503,7 +502,7 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
 
         for (auto & [target, links] : roots)
             for (auto & link : links)
-                to << link << store->printStorePath(target);
+                to << link << target;
 
         break;
     }
@@ -511,7 +510,7 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     case wopCollectGarbage: {
         GCOptions options;
         options.action = (GCOptions::GCAction) readInt(from);
-        options.pathsToDelete = readStorePaths<StorePathSet>(*store, from);
+        options.pathsToDelete = readStorePaths<PathSet>(*store, from);
         from >> options.ignoreLiveness >> options.maxFreed;
         // obsolete fields
         readInt(from);
@@ -569,52 +568,44 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     }
 
     case wopQuerySubstitutablePathInfo: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = absPath(readString(from));
         logger->startWork();
         SubstitutablePathInfos infos;
-        StorePathSet paths;
-        paths.insert(path.clone()); // FIXME
-        store->querySubstitutablePathInfos(paths, infos);
+        store->querySubstitutablePathInfos({path}, infos);
         logger->stopWork();
-        auto i = infos.find(path);
+        SubstitutablePathInfos::iterator i = infos.find(path);
         if (i == infos.end())
             to << 0;
         else {
-            to << 1
-               << (i->second.deriver ? store->printStorePath(*i->second.deriver) : "");
-            writeStorePaths(*store, to, i->second.references);
-            to << i->second.downloadSize
-               << i->second.narSize;
+            to << 1 << i->second.deriver << i->second.references << i->second.downloadSize << i->second.narSize;
         }
         break;
     }
 
     case wopQuerySubstitutablePathInfos: {
-        auto paths = readStorePaths<StorePathSet>(*store, from);
+        PathSet paths = readStorePaths<PathSet>(*store, from);
         logger->startWork();
         SubstitutablePathInfos infos;
         store->querySubstitutablePathInfos(paths, infos);
         logger->stopWork();
         to << infos.size();
         for (auto & i : infos) {
-            to << store->printStorePath(i.first)
-               << (i.second.deriver ? store->printStorePath(*i.second.deriver) : "");
-            writeStorePaths(*store, to, i.second.references);
-            to << i.second.downloadSize << i.second.narSize;
+            to << i.first << i.second.deriver << i.second.references
+               << i.second.downloadSize << i.second.narSize;
         }
         break;
     }
 
     case wopQueryAllValidPaths: {
         logger->startWork();
-        auto paths = store->queryAllValidPaths();
+        PathSet paths = store->queryAllValidPaths();
         logger->stopWork();
-        writeStorePaths(*store, to, paths);
+        to << paths;
         break;
     }
 
     case wopQueryPathInfo: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = readStorePath(*store, from);
         std::shared_ptr<const ValidPathInfo> info;
         logger->startWork();
         try {
@@ -626,10 +617,8 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
         if (info) {
             if (GET_PROTOCOL_MINOR(clientVersion) >= 17)
                 to << 1;
-            to << (info->deriver ? store->printStorePath(*info->deriver) : "")
-               << info->narHash.to_string(Base16, false);
-            writeStorePaths(*store, to, info->references);
-            to << info->registrationTime << info->narSize;
+            to << info->deriver << info->narHash.to_string(Base16, false) << info->references
+               << info->registrationTime << info->narSize;
             if (GET_PROTOCOL_MINOR(clientVersion) >= 16) {
                 to << info->ultimate
                    << info->sigs
@@ -662,7 +651,7 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     }
 
     case wopAddSignatures: {
-        auto path = store->parseStorePath(readString(from));
+        Path path = readStorePath(*store, from);
         StringSet sigs = readStrings<StringSet>(from);
         logger->startWork();
         if (!trusted)
@@ -674,21 +663,22 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     }
 
     case wopNarFromPath: {
-        auto path = store->parseStorePath(readString(from));
+        auto path = readStorePath(*store, from);
         logger->startWork();
         logger->stopWork();
-        dumpPath(store->printStorePath(path), to);
+        dumpPath(path, to);
         break;
     }
 
     case wopAddToStoreNar: {
         bool repair, dontCheckSigs;
-        ValidPathInfo info(store->parseStorePath(readString(from)));
-        auto deriver = readString(from);
-        if (deriver != "")
-            info.deriver = store->parseStorePath(deriver);
+        ValidPathInfo info;
+        info.path = readStorePath(*store, from);
+        from >> info.deriver;
+        if (!info.deriver.empty())
+            store->assertStorePath(info.deriver);
         info.narHash = Hash(readString(from), htSHA256);
-        info.references = readStorePaths<StorePathSet>(*store, from);
+        info.references = readStorePaths<PathSet>(*store, from);
         from >> info.registrationTime >> info.narSize >> info.ultimate;
         info.sigs = readStrings<StringSet>(from);
         from >> info.ca >> repair >> dontCheckSigs;
@@ -719,18 +709,13 @@ static void performOp(TunnelLogger * logger, ref<Store> store,
     }
 
     case wopQueryMissing: {
-        std::vector<StorePathWithOutputs> targets;
-        for (auto & s : readStrings<Strings>(from))
-            targets.push_back(store->parseDrvPathWithOutputs(s));
+        PathSet targets = readStorePaths<PathSet>(*store, from);
         logger->startWork();
-        StorePathSet willBuild, willSubstitute, unknown;
+        PathSet willBuild, willSubstitute, unknown;
         unsigned long long downloadSize, narSize;
         store->queryMissing(targets, willBuild, willSubstitute, unknown, downloadSize, narSize);
         logger->stopWork();
-        writeStorePaths(*store, to, willBuild);
-        writeStorePaths(*store, to, willSubstitute);
-        writeStorePaths(*store, to, unknown);
-        to << downloadSize << narSize;
+        to << willBuild << willSubstitute << unknown << downloadSize << narSize;
         break;
     }
 

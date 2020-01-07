@@ -27,7 +27,7 @@ struct CmdCopySigs : StorePathsCommand
         return "copy path signatures from substituters (like binary caches)";
     }
 
-    void run(ref<Store> store, StorePaths storePaths) override
+    void run(ref<Store> store, Paths storePaths) override
     {
         if (substituterUris.empty())
             throw UsageError("you must specify at least one substituter using '-s'");
@@ -44,12 +44,10 @@ struct CmdCopySigs : StorePathsCommand
 
         //logger->setExpected(doneLabel, storePaths.size());
 
-        auto doPath = [&](const Path & storePathS) {
+        auto doPath = [&](const Path & storePath) {
             //Activity act(*logger, lvlInfo, format("getting signatures for '%s'") % storePath);
 
             checkInterrupt();
-
-            auto storePath = store->parseStorePath(storePathS);
 
             auto info = store->queryPathInfo(storePath);
 
@@ -57,7 +55,7 @@ struct CmdCopySigs : StorePathsCommand
 
             for (auto & store2 : substituters) {
                 try {
-                    auto info2 = store2->queryPathInfo(info->path);
+                    auto info2 = store2->queryPathInfo(storePath);
 
                     /* Don't import signatures that don't match this
                        binary. */
@@ -82,11 +80,11 @@ struct CmdCopySigs : StorePathsCommand
         };
 
         for (auto & storePath : storePaths)
-            pool.enqueue(std::bind(doPath, store->printStorePath(storePath)));
+            pool.enqueue(std::bind(doPath, storePath));
 
         pool.process();
 
-        printInfo("imported %d signatures", added);
+        printInfo(format("imported %d signatures") % added);
     }
 };
 
@@ -111,7 +109,7 @@ struct CmdSignPaths : StorePathsCommand
         return "sign the specified paths";
     }
 
-    void run(ref<Store> store, StorePaths storePaths) override
+    void run(ref<Store> store, Paths storePaths) override
     {
         if (secretKeyFile.empty())
             throw UsageError("you must specify a secret key file using '-k'");
@@ -125,7 +123,7 @@ struct CmdSignPaths : StorePathsCommand
 
             auto info2(*info);
             info2.sigs.clear();
-            info2.sign(*store, secretKey);
+            info2.sign(secretKey);
             assert(!info2.sigs.empty());
 
             if (!info->sigs.count(*info2.sigs.begin())) {
@@ -134,7 +132,7 @@ struct CmdSignPaths : StorePathsCommand
             }
         }
 
-        printInfo("added %d signatures", added);
+        printInfo(format("added %d signatures") % added);
     }
 };
 

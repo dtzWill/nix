@@ -48,7 +48,7 @@ struct CmdLog : InstallableCommand
           std::cout << *log;
         };
         for (auto & sub : subs) {
-            if (b.drvPath) {
+            if (b.drvPath != "") {
                 if (auto log = sub->getBuildLog(b.drvPath))
                     return showLog(log, sub);
             }
