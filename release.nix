@@ -195,6 +195,8 @@ let
         name = "nix-build";
         src = tarball;
 
+        enableParallelBuilding = true;
+
         buildInputs = buildDeps;
 
         dontInstall = false;
@@ -207,6 +209,9 @@ let
         # syntax-check generated dot files, it still requires some
         # fonts.  So provide those.
         FONTCONFIG_FILE = texFunctions.fontsConf;
+
+        # To test building without precompiled headers.
+        makeFlagsArray = [ "PRECOMPILE_HEADERS=0" ];
       };
 
 
