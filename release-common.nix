@@ -53,7 +53,8 @@ rec {
     ];
 
   curl = pkgs.curl.overrideAttrs (o: rec {
-    name = "curl-7.68.0";
+    version = "7.68.0";
+    name = "curl-${version}";
 
     src = fetchurl {
       urls = [
