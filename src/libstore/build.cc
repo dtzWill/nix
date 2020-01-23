@@ -2589,6 +2589,7 @@ void DerivationGoal::writeStructuredAttrs()
     }
 
     writeFile(tmpDir + "/.attrs.json", rewriteStrings(json.dump(), inputRewrites));
+    chownToBuilder(tmpDir + "/.attrs.json");
 
     /* As a convenience to bash scripts, write a shell file that
        maps all attributes that are representable in bash -
@@ -2657,6 +2658,7 @@ void DerivationGoal::writeStructuredAttrs()
     }
 
     writeFile(tmpDir + "/.attrs.sh", rewriteStrings(jsonSh, inputRewrites));
+    chownToBuilder(tmpDir + "/.attrs.sh");
 }
 
 
