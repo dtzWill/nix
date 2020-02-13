@@ -1340,11 +1340,15 @@ std::string filterANSIEscapes(const std::string & s, bool filterAll, unsigned in
 
     while (w < (size_t) width && i != s.end()) {
 
-        if (*i == '\e') {
+        // Check for ANSI sequences: ESC followed by byte [0x40,0x5f].
+        auto j = std::next(i);
+        if (*i == '\e' && /* first byte is ESC */
+            j != s.end() && *j >= 0x40 && *j <= 0x5f /* second byte present, in range */) {
             std::string e;
             e += *i++;
             char last = 0;
 
+            // Recognize CSI, eat
             if (i != s.end() && *i == '[') {
                 e += *i++;
                 // eat parameter bytes
@@ -1354,7 +1358,10 @@ std::string filterANSIEscapes(const std::string & s, bool filterAll, unsigned in
                 // eat final byte
                 if (i != s.end() && *i >= 0x40 && *i <= 0x7e) e += last = *i++;
             } else {
-                if (i != s.end() && *i >= 0x40 && *i <= 0x5f) e += *i++;
+                // This looks ANSI, but not CSI.
+                // For now, consume portion seen and hope for the best.
+                // For unrecognized sequences > 2 bytes, output may be strange.
+                e += *i++;
             }
 
             if (!filterAll && last == 'm')
