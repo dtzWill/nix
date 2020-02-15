@@ -71,7 +71,7 @@ rec {
   buildDeps =
   [   curl
       bzip2 xz brotli editline
-      openssl pkgconfig sqlite boehmgc
+      openssl pkgconfig sqlite
       boost
       nlohmann_json
 
@@ -87,6 +87,10 @@ rec {
         customMemoryManagement = false;
         inherit stdenv curl;
       });
+
+  propagatedDeps =
+    [ (boehmgc.override { enableLargeConfig = true; })
+    ];
 
   perlDeps =
     [ perl

@@ -23,7 +23,7 @@ let
         src = nix;
         inherit officialRelease;
 
-        buildInputs = tarballDeps ++ buildDeps;
+        buildInputs = tarballDeps ++ buildDeps ++ propagatedDeps;
 
         postUnpack = ''
           (cd $sourceRoot && find . -type f) | cut -c3- > $sourceRoot/.dist-files
@@ -64,6 +64,8 @@ let
         src = tarball;
 
         buildInputs = buildDeps;
+
+        propagatedBuildInputs = propagatedDeps;
 
         preConfigure =
           # Copy libboost_context so we don't get all of Boost in our closure.
@@ -197,7 +199,7 @@ let
 
         enableParallelBuilding = true;
 
-        buildInputs = buildDeps;
+        buildInputs = buildDeps ++ propagatedDeps;
 
         dontInstall = false;
 
