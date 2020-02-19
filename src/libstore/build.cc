@@ -2794,13 +2794,13 @@ struct RestrictedStore : public LocalFSStore
         BuildMode buildMode = bmNormal) override
     { unsupported("buildDerivation"); }
 
-    void addTempRoot(const Path & path)
+    void addTempRoot(const Path & path) override
     { }
 
-    void addIndirectRoot(const Path & path)
+    void addIndirectRoot(const Path & path) override
     { }
 
-    Roots findRoots()
+    Roots findRoots(bool censor) override
     { return Roots(); }
 
     void collectGarbage(const GCOptions & options, GCResults & results)
