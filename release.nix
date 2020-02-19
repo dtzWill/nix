@@ -63,6 +63,8 @@ let
         name = "nix";
         src = tarball;
 
+        outputs = [ "out" "dev" ];
+
         buildInputs = buildDeps;
 
         propagatedBuildInputs = propagatedDeps;
