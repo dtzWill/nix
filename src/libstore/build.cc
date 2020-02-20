@@ -897,7 +897,7 @@ private:
         return inputPaths.count(path) || addedPaths.count(path);
     }
 
-    friend class RestrictedStore;
+    friend struct RestrictedStore;
 
 public:
     DerivationGoal(const Path & drvPath, const StringSet & wantedOutputs,
@@ -2803,15 +2803,15 @@ struct RestrictedStore : public LocalFSStore
     Roots findRoots(bool censor) override
     { return Roots(); }
 
-    void collectGarbage(const GCOptions & options, GCResults & results)
+    void collectGarbage(const GCOptions & options, GCResults & results) override
     { }
 
-    void addSignatures(const Path & storePath, const StringSet & sigs)
+    void addSignatures(const Path & storePath, const StringSet & sigs) override
     { unsupported("addSignatures"); }
 
     void queryMissing(const PathSet & targets,
         PathSet & willBuild, PathSet & willSubstitute, PathSet & unknown,
-        unsigned long long & downloadSize, unsigned long long & narSize)
+        unsigned long long & downloadSize, unsigned long long & narSize) override
     {
         /* This is slightly impure since it leaks information to the
            client about what paths will be built/substituted or are
