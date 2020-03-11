@@ -73,6 +73,8 @@ void printDotGraph(ref<Store> store, const PathSet & roots)
             }
         }
 
+    }
+
     cout << "}\n";
 }
 
