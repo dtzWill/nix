@@ -273,7 +273,7 @@ std::string Store::getUri()
 
 bool Store::PathInfoCacheValue::isKnownNow()
 {
-    std::chrono::duration ttl = didExist()
+    auto ttl = didExist()
         ? std::chrono::seconds(settings.ttlPositiveNarInfoCache)
         : std::chrono::seconds(settings.ttlNegativeNarInfoCache);
 
