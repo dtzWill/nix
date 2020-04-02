@@ -37,9 +37,6 @@ Value * findAlongAttrPath(EvalState & state, const string & attrPath,
 {
     Strings tokens = parseAttrPath(attrPath);
 
-    Error attrError =
-        Error(format("attribute selection path '%1%' does not match expression") % attrPath);
-
     Value * v = &vIn;
 
     for (auto & attr : tokens) {
