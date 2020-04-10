@@ -524,7 +524,7 @@ bool NixRepl::processLine(string line)
                but doing it in a child makes it easier to recover from
                problems / SIGINT. */
             if (runProgram(settings.nixBinDir + "/nix", Strings{"build", "--no-link", drvPath}) == 0) {
-                auto drv = readDerivation(*state->store, drvPath);
+                auto drv = readDerivation(drvPath);
                 std::cout << std::endl << "this derivation produced the following outputs:" << std::endl;
                 for (auto & i : drv.outputs)
                     std::cout << format("  %1% -> %2%") % i.first % i.second.path << std::endl;
