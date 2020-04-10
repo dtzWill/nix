@@ -416,7 +416,7 @@ Path NixRepl::getDerivationPath(Value & v) {
     if (!drvInfo)
         throw Error("expression does not evaluate to a derivation, so I can't build it");
     Path drvPath = drvInfo->queryDrvPath();
-    if (drvPath == "" || !state->store->isValidPath(state->store->parseStorePath(drvPath)))
+    if (drvPath == "" || !state->store->isValidPath(drvPath))
         throw Error("expression did not evaluate to a valid derivation");
     return drvPath;
 }
